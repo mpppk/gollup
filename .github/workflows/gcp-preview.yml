@@ -1,0 +1,88 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, closed]
+
+env:
+  PROJECT: mpppk-workspace
+  HOSTNAME: asia.gcr.io
+  REGION: asia-northeast1
+  SERVICE: preview-${{ github.event.number }}
+
+jobs:
+  setup-build-publish-deploy:
+    name: Setup, Build, Publish, and Deploy
+    if: github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # Setup gcloud CLI
+      - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: '274.0.0'
+          service_account_key: ${{ secrets.GCP_KEY }}
+
+      # Configure gcloud
+      - run: |
+          gcloud config set project ${PROJECT}
+          gcloud config set run/platform managed
+          gcloud config set run/region ${REGION}
+          gcloud auth configure-docker
+
+      # Build the Docker image
+      - name: Build
+        run: |
+          docker build -t ${HOSTNAME}/${PROJECT}/${SERVICE} .
+
+      # Publish the Docker image to GCR
+      - name: Publish
+        run: |
+          docker push ${HOSTNAME}/${PROJECT}/${SERVICE}
+
+      # Deploy the Docker image to the Cloud Run
+      - name: Deploy
+        run: |
+          gcloud run deploy ${SERVICE} --image ${HOSTNAME}/${PROJECT}/${SERVICE} --allow-unauthenticated
+          PREVIEW_URL=$(gcloud run services describe ${SERVICE} --format 'value(status.url)')
+          gcloud run services update ${SERVICE} --set-env-vars BASE_URL=${PREVIEW_URL}
+
+      # Notify to Statuses
+      - name: Notify
+        run: |
+          PREVIEW_URL=$(gcloud run services describe ${SERVICE} --format 'value(status.url)')
+          curl -X POST \
+            --url ${{ github.event.pull_request._links.statuses.href }} \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"state\": \"success\",
+              \"target_url\": \"${PREVIEW_URL}\",
+              \"description\": \"Deploy preview ready!\",
+              \"context\": \"deploy/preview\"
+            }"
+
+  cleanup-preview:
+    name: Cleanup the Preview
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      # Setup gcloud CLI
+      - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: '274.0.0'
+          service_account_key: ${{ secrets.GCP_KEY }}
+
+      # Configure gcloud
+      - run: |
+          gcloud config set project ${PROJECT}
+          gcloud config set run/platform managed
+          gcloud config set run/region ${REGION}
+          gcloud auth configure-docker
+
+      - name: Delete the Cloud Run Service
+        run: gcloud --quiet run services delete ${SERVICE}
+
+      - name: Delete the Docker image in GCR
+        run: gcloud container images delete ${HOSTNAME}/${PROJECT}/${SERVICE}

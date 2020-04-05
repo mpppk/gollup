@@ -1,0 +1,1 @@
+curl "http://localhost:1323/api/sum?a=-1&b=2&norm=true"

@@ -1,0 +1,26 @@
+version: "{build}"
+
+platform: x64
+
+clone_folder: c:\gopath\src\github.com\mpppk\cli-template
+
+environment:
+  GOPATH: c:\gopath
+  GO111MODULE: on
+
+install:
+  - set PATH=%GOPATH%/bin;%PATH%
+  - echo %PATH%
+  - echo %GOPATH%
+  - git submodule update --init --recursive
+  - go version
+  - go env
+  - go get github.com/google/wire/cmd/wire
+  - go get -v -t -d ./...
+  - go generate -tags=wireinject ./...
+  - go vet ./...
+
+build_script:
+  - go test -v ./...
+  - go build
+

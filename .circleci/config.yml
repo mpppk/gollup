@@ -1,0 +1,36 @@
+defaults: &defaults
+  docker:
+    - image: circleci/golang:1.14
+  environment:
+    GO111MODULE: "on"
+
+version: 2
+jobs:
+  test:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-module-cache-v1-{{ checksum "~/project/go.sum" }}
+            - go-module-cache-v1-
+      - run: go mod download
+      - save_cache:
+          key: go-module-cache-v1-{{ checksum "~/project/go.sum" }}
+          paths:
+            - ~/go/pkg/mod/cache
+      - run: make setup
+      - run: make build
+      - run: make test
+      - run: make codecov
+
+workflows:
+  version: 2
+  test_and_release:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
