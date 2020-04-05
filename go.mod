@@ -3,7 +3,7 @@ module github.com/mpppk/cli-template
 go 1.12
 
 require (
-	github.com/blang/semver v3.5.1+incompatible
+	github.com/blang/semver v3.6.1+incompatible
 	github.com/comail/colog v0.0.0-20160416085026-fba8e7b1f46c
 	github.com/go-playground/validator/v10 v10.2.0
 	github.com/google/wire v0.4.0
