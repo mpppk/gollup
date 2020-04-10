@@ -2,7 +2,7 @@ version: "{build}"
 
 platform: x64
 
-clone_folder: c:\gopath\src\github.com\mpppk\cli-template
+clone_folder: c:\gopath\src\github.com\mpppk\gollup
 
 environment:
   GOPATH: c:\gopath

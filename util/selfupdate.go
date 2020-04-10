@@ -10,7 +10,7 @@ import (
 
 // Version represents version of this tool
 const Version = "0.2.2"
-const slug = "mpppk/cli-template"
+const slug = "mpppk/gollup"
 
 // Do execute updating binary
 func Do() (bool, error) {

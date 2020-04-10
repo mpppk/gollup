@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/mpppk/cli-template/util"
+	"github.com/mpppk/gollup/util"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
@@ -9,8 +9,8 @@ import (
 func newSelfUpdateCmd(fs afero.Fs) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "selfupdate",
-		Short: "Update cli-template",
-		//Long: `Update cli-template`,
+		Short: "Update gollup",
+		//Long: `Update gollup`,
 		Run: func(cmd *cobra.Command, args []string) {
 			updated, err := util.Do()
 			if err != nil {

@@ -3,6 +3,7 @@ package util
 
 import (
 	"fmt"
+	"github.com/comail/colog"
 	"strconv"
 )
 
@@ -16,4 +17,15 @@ func ConvertStringSliceToIntSlice(stringSlice []string) (intSlice []int, err err
 		intSlice = append(intSlice, num)
 	}
 	return
+}
+
+// InitializeLog initialize log settings
+func InitializeLog(verbose bool) {
+	colog.Register()
+	colog.SetDefaultLevel(colog.LDebug)
+	colog.SetMinLevel(colog.LInfo)
+
+	if verbose {
+		colog.SetMinLevel(colog.LDebug)
+	}
 }
