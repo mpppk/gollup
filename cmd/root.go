@@ -52,20 +52,19 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				return err
 			}
 
-			_, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, "main", "main", []string{})
+			funcMap, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, "main", "main", []string{})
 			if err != nil {
 				return err
 			}
 
-			var funcDeclSlice []*ast.FuncDecl
-			for _, fds := range funcDecls {
-				funcDeclSlice = append(funcDeclSlice, fds...)
+			ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
+			var renamedFuncDecls []ast.Decl
+			for _, decls := range funcDecls {
+				renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
 			}
 
-			main := pkgs["main"]
-			newFuncDecls := ast2.CopyFuncDeclsAsDecl(funcDeclSlice)
-			file := ast2.NewMergedFileFromPackageInfo(main.Syntax)
-			file.Decls = append(file.Decls, newFuncDecls...)
+			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
+			file.Decls = append(file.Decls, renamedFuncDecls...)
 			if err := format.Node(os.Stdout, token.NewFileSet(), file); err != nil {
 				return errors.Wrap(err, "failed to output ast to stdout")
 			}
