@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"go/ast"
 	"go/format"
 	"go/token"
 	"os"
-
-	"golang.org/x/tools/go/packages"
 
 	"github.com/pkg/errors"
 
@@ -52,24 +51,19 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			if err != nil {
 				return err
 			}
-			var main *packages.Package
-			for _, p := range pkgs {
-				if p.Name == "main" {
-					main = p
-					break
-				}
-			}
 
-			if main == nil {
-				panic("main is nil")
-			}
-
-			_, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(main.Syntax, main.TypesInfo, "main", []string{})
+			_, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, "main", "main", []string{})
 			if err != nil {
 				return err
 			}
 
-			newFuncDecls := ast2.CopyFuncDeclsAsDecl(funcDecls)
+			var funcDeclSlice []*ast.FuncDecl
+			for _, fds := range funcDecls {
+				funcDeclSlice = append(funcDeclSlice, fds...)
+			}
+
+			main := pkgs["main"]
+			newFuncDecls := ast2.CopyFuncDeclsAsDecl(funcDeclSlice)
 			file := ast2.NewMergedFileFromPackageInfo(main.Syntax)
 			file.Decls = append(file.Decls, newFuncDecls...)
 			if err := format.Node(os.Stdout, token.NewFileSet(), file); err != nil {

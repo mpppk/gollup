@@ -21,7 +21,7 @@ type Packages struct {
 	M map[string]*packages.Package
 }
 
-func NewProgramFromPackages(packageNames []string) ([]*packages.Package, error) {
+func NewProgramFromPackages(packageNames []string) (map[string]*packages.Package, error) {
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
 	}
@@ -32,7 +32,11 @@ func NewProgramFromPackages(packageNames []string) ([]*packages.Package, error) 
 	if packages.PrintErrors(pkgs) > 0 {
 		return nil, errors.New("error occurred in NewProgramFromPackages")
 	}
-	return pkgs, nil
+	m := map[string]*packages.Package{}
+	for _, pkg := range pkgs {
+		m[pkg.Name] = pkg
+	}
+	return m, nil
 }
 
 func listGoFilesFromDirs(dirs []string) (filePaths []string, err error) {
@@ -45,6 +49,7 @@ func listGoFilesFromDirs(dirs []string) (filePaths []string, err error) {
 	}
 	return
 }
+
 func listGoFiles(dir string) (filePaths []string, err error) {
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -124,14 +129,16 @@ func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
 	return
 }
 
-func ExtractCalledFuncsFromFuncDeclRecursive(files []*ast.File, info *types.Info, funcName string, foundedFuncNames []string) (funcs []*types.Func, funcDecls []*ast.FuncDecl, err error) {
-	funcDecl := findFuncDeclByName(files, funcName)
+func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, packageName, funcName string, foundedFuncNames []string) (funcs []*types.Func, funcDecls map[string][]*ast.FuncDecl, err error) {
+	pkg := pkgs[packageName]
+	funcDecl := findFuncDeclByName(pkg.Syntax, funcName)
 	if funcDecl == nil {
 		return nil, nil, errors.New("specified function is not found: " + funcName)
 	}
 
-	funcDecls = append(funcDecls, funcDecl)
-	calledFuncs := extractCalledFuncsFromFuncDecl(info, funcDecl)
+	funcDecls = map[string][]*ast.FuncDecl{}
+	funcDecls[packageName] = append(funcDecls[packageName], funcDecl)
+	calledFuncs := extractCalledFuncsFromFuncDecl(pkg.TypesInfo, funcDecl)
 	newFoundedFuncs := make([]string, len(foundedFuncNames))
 	copy(newFoundedFuncs, foundedFuncNames)
 	newFoundedFuncs = append(newFoundedFuncs, funcDecl.Name.Name)
@@ -152,12 +159,15 @@ func ExtractCalledFuncsFromFuncDeclRecursive(files []*ast.File, info *types.Info
 
 		funcs = append(funcs, f)
 
-		newFuncs, newFuncDecls, err := ExtractCalledFuncsFromFuncDeclRecursive(files, info, f.Name(), newFoundedFuncs)
+		targetPkgName := f.Pkg().Name()
+		newFuncs, newFuncDecls, err := ExtractCalledFuncsFromFuncDeclRecursive(pkgs, targetPkgName, f.Name(), newFoundedFuncs)
 		if err != nil {
 			return nil, nil, err
 		}
 		funcs = append(funcs, newFuncs...)
-		funcDecls = append(funcDecls, newFuncDecls...)
+		for pkgName, decls := range newFuncDecls {
+			funcDecls[pkgName] = append(funcDecls[pkgName], decls...)
+		}
 	}
 	return
 }
@@ -189,7 +199,6 @@ func findFuncDeclByName(files []*ast.File, name string) *ast.FuncDecl {
 func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
 		if t, _ := node.(*ast.Ident); t != nil {
-
 			obj := info.ObjectOf(t)
 			if tFunc, _ := obj.(*types.Func); tFunc != nil {
 				// 自分自身は無視
@@ -203,3 +212,24 @@ func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDe
 	})
 	return funcs
 }
+
+//func RenameExternalPackageFunctions(pkgs map[string]*packages.Package, decls map[string][]*ast.FuncDecl) []*ast.FuncDecl {
+//	for pkgName, fDecls := range decls {
+//		pkg := pkgs[pkgName]
+//		// 組み込みでない外部パッケージがSelXの場合は、
+//		ast.Inspect(fDecls, func(node ast.Node) bool {
+//			if t, _ := node.(*ast.Ident); t != nil {
+//				obj := pkg.TypesInfo.ObjectOf(t)
+//				if tFunc, _ := obj.(*types.Func); tFunc != nil {
+//					// 自分自身は無視
+//					if obj.Name() != fDecls {
+//						funcs = append(funcs, tFunc)
+//					}
+//				}
+//				return false
+//			}
+//			return true
+//		})
+//		return funcs
+//	}
+//}
