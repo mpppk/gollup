@@ -272,15 +272,34 @@ func RenameExternalPackageFunctions(decls map[string][]*ast.FuncDecl, funcMapMap
 		for _, fDecl := range fDecls {
 			astutil.Apply(fDecl, func(cursor *astutil.Cursor) bool {
 				if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
+					if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+						f, ok := funcMapMap[funcDeclPkgName][ident.Name]
+						if !ok {
+							return true
+						}
+						// 置き換え
+						callExpr := &ast.CallExpr{
+							Fun: &ast.BasicLit{
+								Kind:  token.STRING,
+								Value: renameFunc(f.Pkg().Name(), ident.Name),
+							},
+							Args: callExpr.Args,
+						}
+						cursor.Replace(callExpr)
+						return true
+					}
+
 					selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
 					if !ok {
+
 						return true
 					}
 					x, ok := selExpr.X.(*ast.Ident)
 					if !ok {
 						return true
 					}
-					_, ok = funcMapMap[x.Name]
+
+					f, ok := funcMapMap[x.Name][selExpr.Sel.Name]
 					if !ok {
 						return true
 					}
@@ -289,7 +308,7 @@ func RenameExternalPackageFunctions(decls map[string][]*ast.FuncDecl, funcMapMap
 					callExpr := &ast.CallExpr{
 						Fun: &ast.BasicLit{
 							Kind:  token.STRING,
-							Value: renameFunc(x.Name, selExpr.Sel.Name),
+							Value: renameFunc(f.Pkg().Name(), selExpr.Sel.Name),
 						},
 						Args: callExpr.Args,
 					}
