@@ -2,15 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"go/ast"
 	"go/format"
 	"go/token"
-	"go/types"
 	"os"
 
-	"github.com/go-toolsmith/astcopy"
+	"golang.org/x/tools/go/packages"
+
 	"github.com/pkg/errors"
-	"golang.org/x/tools/go/loader"
 
 	"github.com/mpppk/gollup/util"
 
@@ -19,7 +17,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/mitchellh/go-homedir"
-	goofyast "github.com/mpppk/gollup/ast"
+	ast2 "github.com/mpppk/gollup/ast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -45,7 +43,39 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 		PersistentPreRunE: pPreRunE,
 		Args:              cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(args[0])
+			conf, err := option.NewRootCmdConfigFromViper()
+			if err != nil {
+				return err
+			}
+
+			pkgs, err := ast2.NewProgramFromPackages(conf.Dirs)
+			if err != nil {
+				return err
+			}
+			var main *packages.Package
+			for _, p := range pkgs {
+				if p.Name == "main" {
+					main = p
+					break
+				}
+			}
+
+			if main == nil {
+				panic("main is nil")
+			}
+
+			_, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(main.Syntax, main.TypesInfo, "main", []string{})
+			if err != nil {
+				return err
+			}
+
+			newFuncDecls := ast2.CopyFuncDeclsAsDecl(funcDecls)
+			file := ast2.NewMergedFileFromPackageInfo(main.Syntax)
+			file.Decls = append(file.Decls, newFuncDecls...)
+			if err := format.Node(os.Stdout, token.NewFileSet(), file); err != nil {
+				return errors.Wrap(err, "failed to output ast to stdout")
+			}
+			return nil
 		},
 	}
 
@@ -81,6 +111,11 @@ func registerFlags(cmd *cobra.Command) error {
 				Shorthand:    "v",
 				IsPersistent: true,
 				Usage:        "Show more logs",
+			}},
+		&option.StringFlag{
+			BaseFlag: &option.BaseFlag{
+				Name:  "dirs",
+				Usage: "Packages dirs(comma separated)",
 			}},
 	}
 	return option.RegisterFlags(cmd, flags)
@@ -127,116 +162,4 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
-}
-
-func run(filePath string) error {
-	prog, err := goofyast.NewProgram(filePath)
-	if err != nil {
-		return err
-	}
-	main := prog.Package("main")
-	_, funcDecls := extractCalledFuncsFromFuncDeclRecursive(main, "main", "main", []string{})
-
-	newFuncDecls := copyFuncDeclsAsDecl(funcDecls)
-	file := newMergedFileFromPackageInfo(main)
-	file.Decls = append(file.Decls, newFuncDecls...)
-	if err := format.Node(os.Stdout, token.NewFileSet(), file); err != nil {
-		return errors.Wrap(err, "failed to output ast to stdout")
-	}
-	return nil
-}
-
-func newMergedFileFromPackageInfo(packageInfo *loader.PackageInfo) *ast.File {
-	importDecl := goofyast.MergeImportDeclsFromPackageInfo(packageInfo)
-
-	var imports []*ast.ImportSpec
-	for _, file := range packageInfo.Files {
-		imports = append(imports, file.Imports...)
-	}
-	return &ast.File{
-		Name: &ast.Ident{
-			Name: "main",
-		},
-		Decls:      []ast.Decl{importDecl},
-		Scope:      nil,
-		Imports:    imports,
-		Unresolved: nil,
-		Comments:   nil,
-	}
-
-}
-
-func copyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
-	for _, decl := range funcDecls {
-		newFuncDecls = append(newFuncDecls, astcopy.FuncDecl(decl))
-	}
-	return
-}
-
-func extractCalledFuncsFromFuncDeclRecursive(packageInfo *loader.PackageInfo, packageName, funcName string, foundedFuncNames []string) (funcs []*types.Func, funcDecls []*ast.FuncDecl) {
-	funcDecl := findFuncDeclByName(packageInfo.Files, funcName)
-	funcDecls = append(funcDecls, funcDecl)
-	calledFuncs := extractCalledFuncsFromFuncDecl(packageInfo, funcDecl)
-	newFoundedFuncs := make([]string, len(foundedFuncNames))
-	copy(newFoundedFuncs, foundedFuncNames)
-	newFoundedFuncs = append(newFoundedFuncs, funcDecl.Name.Name)
-
-	for _, f := range calledFuncs {
-		if f.Pkg().Name() != packageName {
-			continue
-		}
-
-		// 既に発見済みの関数の場合はスキップ
-		if isFuncName(foundedFuncNames, f.Name()) {
-			continue
-		}
-
-		funcs = append(funcs, f)
-
-		newFuncs, newFuncDecls := extractCalledFuncsFromFuncDeclRecursive(packageInfo, packageName, f.Name(), newFoundedFuncs)
-		funcs = append(funcs, newFuncs...)
-		funcDecls = append(funcDecls, newFuncDecls...)
-	}
-	return
-}
-
-func isFuncName(funcNames []string, funcName string) bool {
-	for _, n := range funcNames {
-		if n == funcName {
-			return true
-		}
-	}
-	return false
-}
-
-// findFuncDeclByName は指定された名前の関数をfilesから検索して返す。なければnil
-func findFuncDeclByName(files []*ast.File, name string) *ast.FuncDecl {
-	for _, file := range files {
-		for _, decl := range file.Decls {
-			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-				if funcDecl.Name.Name == name {
-					return funcDecl
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数一覧を返す。
-func extractCalledFuncsFromFuncDecl(packageInfo *loader.PackageInfo, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
-	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
-		if t, _ := node.(*ast.Ident); t != nil {
-			obj := packageInfo.Info.ObjectOf(t)
-			if tFunc, _ := obj.(*types.Func); tFunc != nil {
-				// 自分自身は無視
-				if obj.Name() != targetFuncDecl.Name.Name {
-					funcs = append(funcs, tFunc)
-				}
-			}
-			return false
-		}
-		return true
-	})
-	return funcs
 }
