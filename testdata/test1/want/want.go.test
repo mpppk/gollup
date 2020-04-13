@@ -1,0 +1,14 @@
+package main
+
+import (
+	"fmt"
+	"fmt"
+)
+
+func main() {
+	v := f()
+	fmt.Println(v)
+}
+func f() int {
+	return 42
+}

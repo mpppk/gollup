@@ -65,7 +65,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 
 			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
-			if err := format.Node(os.Stdout, token.NewFileSet(), file); err != nil {
+			if err := format.Node(cmd.OutOrStdout(), token.NewFileSet(), file); err != nil {
 				return errors.Wrap(err, "failed to output ast to stdout")
 			}
 			return nil

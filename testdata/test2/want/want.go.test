@@ -1,0 +1,24 @@
+package main
+
+import (
+	"fmt"
+	"github.com/mpppk/gollup/testdata/test2/lib"
+)
+
+const ANSWER = 42
+
+func main() {
+	fmt.Println(F1(), lib_F1())
+}
+func F1() int {
+	return f()
+}
+func f() int {
+	return ANSWER
+}
+func lib_F1() float64 {
+	return lib_f2()
+}
+func lib_f2() float64 {
+	return math.Sqrt(42)
+}
