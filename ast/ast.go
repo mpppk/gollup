@@ -2,13 +2,9 @@ package ast
 
 import (
 	"errors"
-	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
 
@@ -41,41 +37,17 @@ func NewProgramFromPackages(packageNames []string) (map[string]*packages.Package
 	return m, nil
 }
 
-func listGoFilesFromDirs(dirs []string) (filePaths []string, err error) {
-	for _, dir := range dirs {
-		fps, err := listGoFiles(dir)
-		if err != nil {
-			return nil, err
-		}
-		filePaths = append(filePaths, fps...)
-	}
-	return
-}
-
-func listGoFiles(dir string) (filePaths []string, err error) {
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
-			return err
-		}
-
-		if !strings.HasSuffix(path, ".go") ||
-			strings.Contains(path, "_test") {
-			return nil
-		}
-
-		filePaths = append(filePaths, path)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return
-}
-
-func MergeImportDeclsFromPackageInfo(files []*ast.File) (importDecl *ast.GenDecl) {
+func mergeConstDecls(files []*ast.File) (constDecls []*ast.GenDecl) {
 	for _, file := range files {
-		imports := ExtractImportDeclsFromDecls(file.Decls)
+		constraints := extractGenDeclsFromDecls(file.Decls, token.CONST)
+		constDecls = append(constDecls, constraints...)
+	}
+	return
+}
+
+func mergeImportDecls(files []*ast.File) (importDecl *ast.GenDecl) {
+	for _, file := range files {
+		imports := extractGenDeclsFromDecls(file.Decls, token.IMPORT)
 		if importDecl == nil {
 			importDecl = imports[0]
 		}
@@ -86,26 +58,34 @@ func MergeImportDeclsFromPackageInfo(files []*ast.File) (importDecl *ast.GenDecl
 	return
 }
 
-func ExtractImportDeclsFromDecls(decls []ast.Decl) (importDecls []*ast.GenDecl) {
+func extractGenDeclsFromDecls(decls []ast.Decl, tkn token.Token) (importDecls []*ast.GenDecl) {
 	for _, decl := range decls {
-		if importDecl, ok := declToImportDecl(decl); ok {
+		if importDecl, ok := declToGenDecl(decl, tkn); ok {
 			importDecls = append(importDecls, importDecl)
 		}
 	}
 	return
 }
 
-func declToImportDecl(decl ast.Decl) (*ast.GenDecl, bool) {
+func declToGenDecl(decl ast.Decl, tkn token.Token) (*ast.GenDecl, bool) {
 	if genDecl, ok := decl.(*ast.GenDecl); ok {
-		if genDecl.Tok == token.IMPORT {
+		if genDecl.Tok == tkn {
 			return genDecl, true
 		}
 	}
 	return nil, false
 }
 
+func genDeclToDecl(genDecls []*ast.GenDecl) (decls []ast.Decl) {
+	for _, decl := range genDecls {
+		decls = append(decls, decl)
+	}
+	return
+}
+
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
-	importDecl := MergeImportDeclsFromPackageInfo(files)
+	importDecl := mergeImportDecls(files)
+	constDecls := mergeConstDecls(files)
 
 	var imports []*ast.ImportSpec
 	for _, file := range files {
@@ -115,7 +95,7 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 		Name: &ast.Ident{
 			Name: "main",
 		},
-		Decls:      []ast.Decl{importDecl},
+		Decls:      append([]ast.Decl{importDecl}, genDeclToDecl(constDecls)...),
 		Scope:      nil,
 		Imports:    imports,
 		Unresolved: nil,
@@ -129,21 +109,6 @@ func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
 		newFuncDecls = append(newFuncDecls, astcopy.FuncDecl(decl))
 	}
 	return
-}
-
-func copyFuncDecls(funcDecls []*ast.FuncDecl) (newFuncDecls []*ast.FuncDecl) {
-	for _, decl := range funcDecls {
-		newFuncDecls = append(newFuncDecls, astcopy.FuncDecl(decl))
-	}
-	return
-}
-
-func CopyFuncDeclMap(funcDeclMap map[string][]*ast.FuncDecl) map[string][]*ast.FuncDecl {
-	m := map[string][]*ast.FuncDecl{}
-	for pkgName, decls := range funcDeclMap {
-		m[pkgName] = copyFuncDecls(decls)
-	}
-	return m
 }
 
 func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, packageName, funcName string, foundedFuncNames []string) (funcs map[string]map[string]*types.Func, funcDecls map[string][]*ast.FuncDecl, err error) {
@@ -162,10 +127,6 @@ func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, 
 
 	funcs = map[string]map[string]*types.Func{}
 	for _, f := range calledFuncs {
-
-		// TODO: 他のpackageでも組み込みでなければ探索する
-		// 他のライブラリの場合どうなるか要確認(多分動くと思っている)
-		// 最終的には別リポジトリのコードでもバンドルできるようにしたい
 		targetPkgName := f.Pkg().Name()
 		if util.IsStandardPackage(targetPkgName) {
 			continue
