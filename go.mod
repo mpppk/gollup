@@ -16,7 +16,7 @@ require (
 	github.com/pkg/errors v0.8.0
 	github.com/rhysd/go-github-selfupdate v1.2.1
 	github.com/spf13/afero v1.2.2
-	github.com/spf13/cobra v0.0.7
+	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
 	github.com/valyala/fasttemplate v1.1.0 // indirect
