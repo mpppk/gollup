@@ -19,11 +19,14 @@ $ go get github.com/mpppk/gollup
 ## Usage
 ### Simple example
 
-```shell script
+```shell
 $ tree .
+.
+├── main.go
+├── sub.go
 ```
 
-main.go:
+`main.go`:
 ```go
 package main
 
@@ -35,7 +38,7 @@ func main() {
 }
 ```
 
-sub.go:
+`sub.go`:
 ```go
 package main
 
@@ -48,7 +51,7 @@ func f() int {
 $ gollup | goimports > output.go
 ```
 
-output.go:
+`output.go`:
 ```go
 package main
 
@@ -67,7 +70,15 @@ func f() int {
 
 ### multi package example
 
-main.go
+```shell
+$ tree .
+.
+├── lib
+│   └── lib.go
+├── main.go
+```
+
+`main.go`:
 ```go
 package main
 
@@ -92,7 +103,7 @@ func f() int {
 }
 ```
 
-lib/lib.go:
+`lib/lib.go`:
 ```go
 package lib
 
@@ -107,7 +118,11 @@ func f2() float64 {
 }
 ```
 
-output.go:
+```shell script
+$ gollup ./lib . | goimports > output.go
+```
+
+`output.go`:
 ```go
 package main
 
