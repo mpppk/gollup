@@ -65,14 +65,13 @@ func TestRoot(t *testing.T) {
 		}
 
 		get := buf.String()
-		fmt.Println(get)
 		contents, err := ioutil.ReadFile(c.wantFilePath)
 		if err != nil {
 			t.Fail()
 		}
 		want := string(contents)
 		if want != get {
-			t.Errorf("unexpected response: want:%q, get:%q", want, get)
+			t.Errorf("unexpected response: want:\n%s\nget:\n%s", want, get)
 		}
 	}
 }
