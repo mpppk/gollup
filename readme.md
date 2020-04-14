@@ -23,7 +23,7 @@ $ go get github.com/mpppk/gollup
 $ tree .
 .
 ├── main.go
-├── sub.go
+└── sub.go
 ```
 
 `main.go`:
@@ -59,23 +59,23 @@ import (
 	"fmt"
 )
 
+func f() int {
+	return 42
+}
 func main() {
 	v := f()
 	fmt.Println(v)
 }
-func f() int {
-	return 42
-}
 ```
 
-### multi package example
+### Multi package example
 
 ```shell
 $ tree .
 .
 ├── lib
 │   └── lib.go
-├── main.go
+└── main.go
 ```
 
 `main.go`:
@@ -133,9 +133,6 @@ import (
 
 const ANSWER = 42
 
-func main() {
-        fmt.Println(F1(), lib_F1())
-}
 func F1() int {
         return f()
 }
@@ -147,5 +144,8 @@ func lib_F1() float64 {
 }
 func lib_f2() float64 {
         return math.Sqrt(42)
+}
+func main() {
+        fmt.Println(F1(), lib_F1())
 }
 ```
