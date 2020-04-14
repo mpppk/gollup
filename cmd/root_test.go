@@ -65,15 +65,19 @@ func TestRoot(t *testing.T) {
 		}
 
 		get := buf.String()
-		trimmedGet := strings.Trim(get, "\n")
+		trimmedGet := removeCarriageReturn(get)
 		contents, err := ioutil.ReadFile(c.wantFilePath)
 		if err != nil {
 			t.Fail()
 		}
 		want := string(contents)
-		trimmedWant := strings.Trim(want, "\n")
+		trimmedWant := removeCarriageReturn(want)
 		if want != get {
 			t.Errorf("unexpected response: want:\n%s\nget:\n%s", trimmedWant, trimmedGet)
 		}
 	}
+}
+
+func removeCarriageReturn(s string) string {
+	return strings.Replace(s, "\r", "", -1)
 }
