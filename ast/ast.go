@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 
 	"golang.org/x/tools/go/ast/astutil"
 
@@ -79,6 +80,22 @@ func declToGenDecl(decl ast.Decl, tkn token.Token) (*ast.GenDecl, bool) {
 func genDeclToDecl(genDecls []*ast.GenDecl) (decls []ast.Decl) {
 	for _, decl := range genDecls {
 		decls = append(decls, decl)
+	}
+	return
+}
+
+func declToFuncDecl(decls []ast.Decl) (funcDecls []*ast.FuncDecl) {
+	for _, decl := range decls {
+		if fd, ok := decl.(*ast.FuncDecl); ok {
+			funcDecls = append(funcDecls, fd)
+		}
+	}
+	return
+}
+
+func funcDeclToDecl(funcDecls []*ast.FuncDecl) (decls []ast.Decl) {
+	for _, fd := range funcDecls {
+		decls = append(decls, fd)
 	}
 	return
 }
@@ -287,4 +304,12 @@ func renameFunc(pkgName, funcName string) string {
 		return funcName
 	}
 	return pkgName + "_" + funcName
+}
+
+func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
+	funcDecls := declToFuncDecl(decls)
+	sort.Slice(funcDecls, func(i, j int) bool {
+		return funcDecls[i].Name.Name < funcDecls[j].Name.Name
+	})
+	return funcDeclToDecl(funcDecls)
 }

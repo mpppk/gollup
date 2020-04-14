@@ -21,19 +21,30 @@ func TestRoot(t *testing.T) {
 		wantFilePath string
 	}{
 		{
-			command: fmt.Sprintf("--dirs %s %s",
+			command: fmt.Sprintf("%s",
 				filepath.Join(testDir, "test1"),
-				filepath.Join(testDir, "test1", "main.go"),
 			),
 			wantFilePath: filepath.Join(testDir, "test1", "want", "want.go.test"),
 		},
 		{
-			command: fmt.Sprintf("--dirs %s %s",
-				strings.Join([]string{
-					filepath.Join(testDir, "test2"),
-					filepath.Join(testDir, "test2", "lib"),
-				}, ","),
-				filepath.Join(testDir, "test2", "main.go"),
+			// execute with entry point
+			command: fmt.Sprintf("--entrypoint main.main %s",
+				filepath.Join(testDir, "test1"),
+			),
+			wantFilePath: filepath.Join(testDir, "test1", "want", "want.go.test"),
+		},
+		{
+			command: fmt.Sprintf("%s %s",
+				filepath.Join(testDir, "test2"),
+				filepath.Join(testDir, "test2", "lib"),
+			),
+			wantFilePath: filepath.Join(testDir, "test2", "want", "want.go.test"),
+		},
+		{
+			// execute with entry point
+			command: fmt.Sprintf("--entrypoint main.main %s %s",
+				filepath.Join(testDir, "test2"),
+				filepath.Join(testDir, "test2", "lib"),
 			),
 			wantFilePath: filepath.Join(testDir, "test2", "want", "want.go.test"),
 		},
