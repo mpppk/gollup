@@ -5,10 +5,10 @@ import (
 	"fmt"
 )
 
+func f() int {
+	return 42
+}
 func main() {
 	v := f()
 	fmt.Println(v)
-}
-func f() int {
-	return 42
 }
