@@ -65,26 +65,19 @@ func TestRoot(t *testing.T) {
 		}
 
 		get := buf.String()
-		//trimmedGet := trimBR(get)
-		trimmedGet := removeCarriageReturn(get)
+		get = removeCarriageReturn(get)
 		contents, err := ioutil.ReadFile(c.wantFilePath)
 		if err != nil {
 			t.Fail()
 		}
 		want := string(contents)
-		trimmedWant := removeCarriageReturn(want)
-		if trimmedWant != trimmedGet {
-			t.Errorf("unexpected response: want:\n%s\nget:\n%s", trimmedWant, trimmedGet)
+		want = removeCarriageReturn(want)
+		if want != get {
+			t.Errorf("unexpected response: want:\n%s\nget:\n%s", want, get)
 		}
 	}
 }
 
 func removeCarriageReturn(s string) string {
 	return strings.Replace(s, "\r", "", -1)
-}
-
-func trimBR(s string) string {
-	s = strings.Trim(s, "\r\n")
-	s = strings.Trim(s, "\n")
-	return s
 }
