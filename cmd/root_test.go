@@ -65,13 +65,15 @@ func TestRoot(t *testing.T) {
 		}
 
 		get := buf.String()
+		trimmedGet := strings.Trim(get, "\n")
 		contents, err := ioutil.ReadFile(c.wantFilePath)
 		if err != nil {
 			t.Fail()
 		}
 		want := string(contents)
+		trimmedWant := strings.Trim(want, "\n")
 		if want != get {
-			t.Errorf("unexpected response: want:\n%s\nget:\n%s", want, get)
+			t.Errorf("unexpected response: want:\n%s\nget:\n%s", trimmedWant, trimmedGet)
 		}
 	}
 }
