@@ -39,20 +39,25 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 		Short:             "bundle golang sources into single file with tree-shaking",
 		SilenceErrors:     true,
 		SilenceUsage:      true,
+		Args:              cobra.ArbitraryArgs,
 		PersistentPreRunE: pPreRunE,
-		Args:              cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			conf, err := option.NewRootCmdConfigFromViper()
 			if err != nil {
 				return err
 			}
 
-			pkgs, err := ast2.NewProgramFromPackages(conf.Dirs)
+			pkgDirs := args
+			if len(args) == 0 {
+				pkgDirs = []string{"."}
+			}
+
+			pkgs, err := ast2.NewProgramFromPackages(pkgDirs)
 			if err != nil {
 				return err
 			}
 
-			funcMap, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, "main", "main", []string{})
+			funcMap, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, conf.TargetPackage, conf.TargetMethod, []string{})
 			if err != nil {
 				return err
 			}
@@ -62,6 +67,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			for _, decls := range funcDecls {
 				renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
 			}
+			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 
 			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
@@ -107,9 +113,11 @@ func registerFlags(cmd *cobra.Command) error {
 			}},
 		&option.StringFlag{
 			BaseFlag: &option.BaseFlag{
-				Name:  "dirs",
-				Usage: "Packages dirs(comma separated)",
-			}},
+				Name:  "entrypoint",
+				Usage: "Entrypoint",
+			},
+			Value: "main.main",
+		},
 	}
 	return option.RegisterFlags(cmd, flags)
 }
