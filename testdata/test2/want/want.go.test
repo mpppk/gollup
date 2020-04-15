@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/mpppk/gollup/testdata/test2/lib"
+	"math"
 )
 
 const ANSWER = 42

@@ -1,15 +1,17 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/token"
+	"io"
 	"os"
 
-	"github.com/pkg/errors"
-
 	"github.com/mpppk/gollup/util"
+	"github.com/pkg/errors"
+	"golang.org/x/tools/imports"
 
 	"github.com/mpppk/gollup/cmd/option"
 
@@ -71,8 +73,18 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 
 			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
-			if err := format.Node(cmd.OutOrStdout(), token.NewFileSet(), file); err != nil {
-				return errors.Wrap(err, "failed to output ast to stdout")
+
+			buf := new(bytes.Buffer)
+			if err := format.Node(buf, token.NewFileSet(), file); err != nil {
+				return errors.Wrap(err, "failed to output")
+			}
+			newSrc, err := formatSrc(buf.Bytes())
+			if err != nil {
+				return err
+			}
+
+			if _, err := io.WriteString(cmd.OutOrStdout(), string(newSrc)); err != nil {
+				return err
 			}
 			return nil
 		},
@@ -87,6 +99,16 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 	}
 
 	return cmd, nil
+}
+
+func formatSrc(bytes []byte) ([]byte, error) {
+	options := &imports.Options{
+		TabWidth:  8,
+		TabIndent: true,
+		Comments:  true,
+		Fragment:  true,
+	}
+	return imports.Process("<standard input>", bytes, options)
 }
 
 func registerSubCommands(fs afero.Fs, cmd *cobra.Command) error {
