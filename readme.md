@@ -48,7 +48,7 @@ func f() int {
 ```
 
 ```shell script
-$ gollup | goimports > output.go
+$ gollup > output.go
 ```
 
 `output.go`:
@@ -119,7 +119,7 @@ func f2() float64 {
 ```
 
 ```shell script
-$ gollup ./lib . | goimports > output.go
+$ gollup ./lib . > output.go
 ```
 
 `output.go`:
