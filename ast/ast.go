@@ -143,30 +143,30 @@ func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, 
 	newFoundedFuncs = append(newFoundedFuncs, funcDecl.Name.Name)
 
 	funcs = map[string]map[string]*types.Func{}
-	for _, f := range calledFuncs {
-		targetPkgName := f.Pkg().Name()
-		if util.IsStandardPackage(targetPkgName) {
-			continue
-		}
+	for targetPkgName, fs := range calledFuncs {
+		for _, f := range fs {
+			if f.Pkg() == nil || util.IsStandardPackage(f.Pkg().Path()) {
+				continue
+			}
 
-		// 既に発見済みの関数の場合はスキップ
-		if isFuncName(foundedFuncNames, f.Name()) {
-			continue
-		}
+			// 既に発見済みの関数の場合はスキップ
+			if isFuncName(foundedFuncNames, f.Name()) {
+				continue
+			}
 
-		if funcs[targetPkgName] == nil {
-			funcs[targetPkgName] = map[string]*types.Func{}
-		}
-		funcs[targetPkgName][f.Name()] = f
-		newFuncs, newFuncDecls, err := ExtractCalledFuncsFromFuncDeclRecursive(pkgs, targetPkgName, f.Name(), newFoundedFuncs)
-		if err != nil {
-			return nil, nil, err
-		}
-		//funcs = append(funcs, newFuncs...)
-		funcs = mergeFuncMapMap(funcs, newFuncs)
+			if funcs[targetPkgName] == nil {
+				funcs[targetPkgName] = map[string]*types.Func{}
+			}
+			funcs[targetPkgName][f.Name()] = f
+			newFuncs, newFuncDecls, err := ExtractCalledFuncsFromFuncDeclRecursive(pkgs, targetPkgName, f.Name(), newFoundedFuncs)
+			if err != nil {
+				return nil, nil, err
+			}
+			funcs = mergeFuncMapMap(funcs, newFuncs)
 
-		for pkgName, decls := range newFuncDecls {
-			funcDecls[pkgName] = append(funcDecls[pkgName], decls...)
+			for pkgName, decls := range newFuncDecls {
+				funcDecls[pkgName] = append(funcDecls[pkgName], decls...)
+			}
 		}
 	}
 	return
@@ -227,18 +227,46 @@ func findFuncDeclByName(files []*ast.File, name string) *ast.FuncDecl {
 	return nil
 }
 
-// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数一覧を返す。
-func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
+// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
+func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs map[string][]*types.Func) {
+	funcs = map[string][]*types.Func{}
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
-		if t, _ := node.(*ast.Ident); t != nil {
-			obj := info.ObjectOf(t)
-			if tFunc, _ := obj.(*types.Func); tFunc != nil {
-				// 自分自身は無視
-				if obj.Name() != targetFuncDecl.Name.Name {
-					funcs = append(funcs, tFunc)
+		if callExpr, ok := node.(*ast.CallExpr); ok {
+			if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+				obj := info.ObjectOf(ident)
+				tFunc, ok := obj.(*types.Func)
+				if !ok {
+					return true
 				}
+				if tFunc.Pkg() != nil {
+					funcs[tFunc.Pkg().Name()] = append(funcs[tFunc.Pkg().Name()], tFunc)
+				}
+				return true
 			}
-			return false
+			if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+				obj := info.ObjectOf(selectorExpr.Sel)
+				// 自分自身は無視
+				if obj.Name() == targetFuncDecl.Name.Name {
+					return true
+				}
+
+				tFunc, ok := obj.(*types.Func)
+				if !ok {
+					return true
+				}
+
+				if tFunc.Pkg() != nil {
+					funcs[tFunc.Pkg().Name()] = append(funcs[tFunc.Pkg().Name()], tFunc)
+					return true
+				}
+				xident, ok := selectorExpr.X.(*ast.Ident)
+				if !ok {
+					panic("not ident x")
+				}
+				xObj := info.ObjectOf(xident)
+				funcs[xObj.Pkg().Name()] = append(funcs[tFunc.Pkg().Name()], tFunc)
+				return true
+			}
 		}
 		return true
 	})
