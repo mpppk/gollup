@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"reflect"
 	"sort"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -12,8 +13,6 @@ import (
 	"golang.org/x/tools/go/packages"
 
 	"github.com/mpppk/gollup/util"
-
-	"github.com/go-toolsmith/astcopy"
 )
 
 type Packages struct {
@@ -38,68 +37,6 @@ func NewProgramFromPackages(packageNames []string) (map[string]*packages.Package
 	return m, nil
 }
 
-func mergeConstDecls(files []*ast.File) (constDecls []*ast.GenDecl) {
-	for _, file := range files {
-		constraints := extractGenDeclsFromDecls(file.Decls, token.CONST)
-		constDecls = append(constDecls, constraints...)
-	}
-	return
-}
-
-func mergeImportDecls(files []*ast.File) (importDecl *ast.GenDecl) {
-	for _, file := range files {
-		imports := extractGenDeclsFromDecls(file.Decls, token.IMPORT)
-		if importDecl == nil {
-			importDecl = imports[0]
-		}
-		for _, genDecl := range imports {
-			importDecl.Specs = append(importDecl.Specs, genDecl.Specs...)
-		}
-	}
-	return
-}
-
-func extractGenDeclsFromDecls(decls []ast.Decl, tkn token.Token) (importDecls []*ast.GenDecl) {
-	for _, decl := range decls {
-		if importDecl, ok := declToGenDecl(decl, tkn); ok {
-			importDecls = append(importDecls, importDecl)
-		}
-	}
-	return
-}
-
-func declToGenDecl(decl ast.Decl, tkn token.Token) (*ast.GenDecl, bool) {
-	if genDecl, ok := decl.(*ast.GenDecl); ok {
-		if genDecl.Tok == tkn {
-			return genDecl, true
-		}
-	}
-	return nil, false
-}
-
-func genDeclToDecl(genDecls []*ast.GenDecl) (decls []ast.Decl) {
-	for _, decl := range genDecls {
-		decls = append(decls, decl)
-	}
-	return
-}
-
-func declToFuncDecl(decls []ast.Decl) (funcDecls []*ast.FuncDecl) {
-	for _, decl := range decls {
-		if fd, ok := decl.(*ast.FuncDecl); ok {
-			funcDecls = append(funcDecls, fd)
-		}
-	}
-	return
-}
-
-func funcDeclToDecl(funcDecls []*ast.FuncDecl) (decls []ast.Decl) {
-	for _, fd := range funcDecls {
-		decls = append(decls, fd)
-	}
-	return
-}
-
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 	importDecl := mergeImportDecls(files)
 	constDecls := mergeConstDecls(files)
@@ -112,20 +49,13 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 		Name: &ast.Ident{
 			Name: "main",
 		},
-		Decls:      append([]ast.Decl{importDecl}, genDeclToDecl(constDecls)...),
+		Decls:      append([]ast.Decl{importDecl}, GenDeclToDecl(constDecls)...),
 		Scope:      nil,
 		Imports:    imports,
 		Unresolved: nil,
 		Comments:   nil,
 	}
 
-}
-
-func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
-	for _, decl := range funcDecls {
-		newFuncDecls = append(newFuncDecls, astcopy.FuncDecl(decl))
-	}
-	return
 }
 
 func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, packageName, funcName string, foundedFuncNames []string) (funcs map[string]map[string]*types.Func, funcDecls map[string][]*ast.FuncDecl, err error) {
@@ -170,6 +100,24 @@ func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, 
 		}
 	}
 	return
+}
+
+func ListUsedStructNames(funcDecls map[string][]*ast.FuncDecl) map[string][]string {
+	m := map[string][]string{}
+	for pkg, decls := range funcDecls {
+		for _, decl := range decls {
+			if reflect.ValueOf(decl.Recv).IsNil() {
+				continue
+			}
+			recv := decl.Recv.List[0]
+			if starExpr, ok := recv.Type.(*ast.StarExpr); ok {
+				if xident, ok := starExpr.X.(*ast.Ident); ok {
+					m[pkg] = append(m[pkg], xident.Name)
+				}
+			}
+		}
+	}
+	return m
 }
 
 func mergeFuncMapMap(m1, m2 map[string]map[string]*types.Func) map[string]map[string]*types.Func {
@@ -220,6 +168,27 @@ func findFuncDeclByName(files []*ast.File, name string) *ast.FuncDecl {
 			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 				if funcDecl.Name.Name == name {
 					return funcDecl
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// FindTypeGenDeclByName は指定された名前の関数をfilesから検索して返す。なければnil
+func FindTypeGenDeclByName(files []*ast.File, name string) *ast.GenDecl {
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			if genDecl, ok := decl.(*ast.GenDecl); ok {
+				if genDecl.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range genDecl.Specs {
+					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+						if typeSpec.Name.Name == name {
+							return genDecl
+						}
+					}
 				}
 			}
 		}
@@ -278,52 +247,55 @@ func RenameExternalPackageFunctions(decls map[string][]*ast.FuncDecl, funcMapMap
 		for _, fDecl := range fDecls {
 			astutil.Apply(fDecl, func(cursor *astutil.Cursor) bool {
 				if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
-					if ident, ok := callExpr.Fun.(*ast.Ident); ok {
-						f, ok := funcMapMap[funcDeclPkgName][ident.Name]
-						if !ok {
-							return true
-						}
-						// 置き換え
-						callExpr := &ast.CallExpr{
-							Fun: &ast.BasicLit{
-								Kind:  token.STRING,
-								Value: renameFunc(f.Pkg().Name(), ident.Name),
-							},
-							Args: callExpr.Args,
-						}
-						cursor.Replace(callExpr)
-						return true
+					if newCallExpr := removePackageFromCallExpr(callExpr, funcDeclPkgName, funcMapMap); newCallExpr != nil {
+						cursor.Replace(newCallExpr)
 					}
-
-					selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
-					if !ok {
-
-						return true
-					}
-					x, ok := selExpr.X.(*ast.Ident)
-					if !ok {
-						return true
-					}
-
-					f, ok := funcMapMap[x.Name][selExpr.Sel.Name]
-					if !ok {
-						return true
-					}
-
-					// 置き換え
-					callExpr := &ast.CallExpr{
-						Fun: &ast.BasicLit{
-							Kind:  token.STRING,
-							Value: renameFunc(f.Pkg().Name(), selExpr.Sel.Name),
-						},
-						Args: callExpr.Args,
-					}
-					cursor.Replace(callExpr)
 				}
 				return true
 			}, nil)
 			fDecl.Name.Name = renameFunc(funcDeclPkgName, fDecl.Name.Name)
 		}
+	}
+}
+
+// package名の部分を削除したCallExprを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
+func removePackageFromCallExpr(callExpr *ast.CallExpr, currentPkgName string, funcMapMap map[string]map[string]*types.Func) *ast.CallExpr {
+	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+		f, ok := funcMapMap[currentPkgName][ident.Name]
+		if !ok {
+			return nil
+		}
+		// 置き換え
+		return &ast.CallExpr{
+			Fun: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: renameFunc(f.Pkg().Name(), ident.Name),
+			},
+			Args: callExpr.Args,
+		}
+	}
+
+	selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	x, ok := selExpr.X.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+
+	f, ok := funcMapMap[x.Name][selExpr.Sel.Name]
+	if !ok {
+		return nil
+	}
+
+	// 置き換え
+	return &ast.CallExpr{
+		Fun: &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: renameFunc(f.Pkg().Name(), selExpr.Sel.Name),
+		},
+		Args: callExpr.Args,
 	}
 }
 

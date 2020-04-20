@@ -64,6 +64,18 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				return err
 			}
 
+			//structNames := ast2.ListUsedStructNames(funcDecls)
+			//
+			//var structs []*ast.GenDecl
+			//for pkgName, names := range structNames {
+			//	for _, structName := range names {
+			//		pkg := pkgs[pkgName]
+			//		if genDecl := ast2.FindTypeGenDeclByName(pkg.Syntax, structName); genDecl != nil {
+			//			structs = append(structs, genDecl)
+			//		}
+			//	}
+			//}
+			//
 			ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
 			var renamedFuncDecls []ast.Decl
 			for _, decls := range funcDecls {
@@ -72,6 +84,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 
 			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
+			//file.Decls = append(file.Decls, ast2.GenDeclToDecl(structs)...)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
 
 			buf := new(bytes.Buffer)
