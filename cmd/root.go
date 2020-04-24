@@ -3,14 +3,15 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
 	"go/format"
 	"go/token"
+	"go/types"
 	"io"
 	"os"
 
-	"github.com/mpppk/gollup/util"
 	"github.com/pkg/errors"
+
+	"github.com/mpppk/gollup/util"
 	"golang.org/x/tools/imports"
 
 	"github.com/mpppk/gollup/cmd/option"
@@ -59,10 +60,38 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				return err
 			}
 
-			funcMap, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, conf.TargetPackage, conf.TargetMethod, []string{})
+			pkg, ok := pkgs.FindPkgByName(conf.TargetPackage)
+			if !ok {
+				panic("specified packages does not found: " + conf.TargetPackage)
+			}
+
+			targetPkg, ok := pkg.Types.Scope().Lookup(conf.TargetMethod).(*types.Func)
+			if !ok {
+				panic("target is not func: " + conf.TargetPackage + "." + conf.TargetMethod)
+			}
+			//funcMap, funcDecls, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs, conf.TargetPackage, conf.TargetMethod, []string{})
+			objects, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs.Packages, targetPkg, []types.Object{})
 			if err != nil {
 				return err
 			}
+
+			//p := ast2.NewPackages(pkgs)
+			//var decls []ast.Decl
+			//for _, object := range objects {
+			//	decl := pkgs.FindDeclByObject(object)
+			//	decls = append(decls, decl)
+			//}
+			sdecls := ast2.NewDecls(pkgs, objects)
+			ast2.RenameExternalPackageFunctions(pkgs, sdecls)
+			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
+			//var renamedFuncDecls []ast.Decl
+			//for _, decls := range sdecls.Funcs {
+			//	renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
+			//}
+			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
+
+			file := ast2.NewMergedFileFromPackageInfo(pkg.Syntax)
+			file.Decls = renamedFuncDecls
 
 			//structNames := ast2.ListUsedStructNames(funcDecls)
 			//
@@ -76,17 +105,17 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			//	}
 			//}
 			//
-			ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
-			var renamedFuncDecls []ast.Decl
-			for _, decls := range funcDecls {
-				renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
-			}
-			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
-
-			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
-			//file.Decls = append(file.Decls, ast2.GenDeclToDecl(structs)...)
-			file.Decls = append(file.Decls, renamedFuncDecls...)
-
+			//ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
+			//var renamedFuncDecls []ast.Decl
+			//for _, decls := range funcDecls {
+			//	renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
+			//}
+			//renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
+			//
+			//file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
+			////file.Decls = append(file.Decls, ast2.GenDeclToDecl(structs)...)
+			//file.Decls = append(file.Decls, renamedFuncDecls...)
+			//
 			buf := new(bytes.Buffer)
 			if err := format.Node(buf, token.NewFileSet(), file); err != nil {
 				return errors.Wrap(err, "failed to output")
