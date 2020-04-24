@@ -325,6 +325,7 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 //}
 
 // package名の部分を削除したCallExprを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
+// 標準パッケージの呼び出しである場合は書き換えを行いません。
 func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *ast.CallExpr {
 	//pkg := pkgs.getPkg(pkgPath)
 	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
@@ -333,6 +334,11 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		if !ok {
 			return nil
 		}
+
+		if util.IsStandardPackage(obj.Pkg().Path()) {
+			return callExpr
+		}
+
 		// 置き換え
 		return &ast.CallExpr{
 			Fun: &ast.BasicLit{
@@ -348,6 +354,9 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		return nil
 	}
 	obj := pkg.TypesInfo.ObjectOf(selExpr.Sel)
+	if util.IsStandardPackage(obj.Pkg().Path()) {
+		return callExpr
+	}
 	//f, ok := pkgs.getFuncFromSelectorExpr(pkgPath, selExpr)
 	//if !ok {
 	//	return nil
