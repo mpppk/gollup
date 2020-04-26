@@ -5,22 +5,15 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"sort"
 
 	"golang.org/x/tools/go/ast/astutil"
 
 	"golang.org/x/tools/go/packages"
 
 	"github.com/mpppk/gollup/util"
-
-	"github.com/go-toolsmith/astcopy"
 )
 
-type Packages struct {
-	M map[string]*packages.Package
-}
-
-func NewProgramFromPackages(packageNames []string) (map[string]*packages.Package, error) {
+func NewProgramFromPackages(packageNames []string) (*Packages, error) {
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
 	}
@@ -31,73 +24,7 @@ func NewProgramFromPackages(packageNames []string) (map[string]*packages.Package
 	if packages.PrintErrors(pkgs) > 0 {
 		return nil, errors.New("error occurred in NewProgramFromPackages")
 	}
-	m := map[string]*packages.Package{}
-	for _, pkg := range pkgs {
-		m[pkg.Name] = pkg
-	}
-	return m, nil
-}
-
-func mergeConstDecls(files []*ast.File) (constDecls []*ast.GenDecl) {
-	for _, file := range files {
-		constraints := extractGenDeclsFromDecls(file.Decls, token.CONST)
-		constDecls = append(constDecls, constraints...)
-	}
-	return
-}
-
-func mergeImportDecls(files []*ast.File) (importDecl *ast.GenDecl) {
-	for _, file := range files {
-		imports := extractGenDeclsFromDecls(file.Decls, token.IMPORT)
-		if importDecl == nil {
-			importDecl = imports[0]
-		}
-		for _, genDecl := range imports {
-			importDecl.Specs = append(importDecl.Specs, genDecl.Specs...)
-		}
-	}
-	return
-}
-
-func extractGenDeclsFromDecls(decls []ast.Decl, tkn token.Token) (importDecls []*ast.GenDecl) {
-	for _, decl := range decls {
-		if importDecl, ok := declToGenDecl(decl, tkn); ok {
-			importDecls = append(importDecls, importDecl)
-		}
-	}
-	return
-}
-
-func declToGenDecl(decl ast.Decl, tkn token.Token) (*ast.GenDecl, bool) {
-	if genDecl, ok := decl.(*ast.GenDecl); ok {
-		if genDecl.Tok == tkn {
-			return genDecl, true
-		}
-	}
-	return nil, false
-}
-
-func genDeclToDecl(genDecls []*ast.GenDecl) (decls []ast.Decl) {
-	for _, decl := range genDecls {
-		decls = append(decls, decl)
-	}
-	return
-}
-
-func declToFuncDecl(decls []ast.Decl) (funcDecls []*ast.FuncDecl) {
-	for _, decl := range decls {
-		if fd, ok := decl.(*ast.FuncDecl); ok {
-			funcDecls = append(funcDecls, fd)
-		}
-	}
-	return
-}
-
-func funcDeclToDecl(funcDecls []*ast.FuncDecl) (decls []ast.Decl) {
-	for _, fd := range funcDecls {
-		decls = append(decls, fd)
-	}
-	return
+	return NewPackages(pkgs), nil
 }
 
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
@@ -112,204 +39,198 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 		Name: &ast.Ident{
 			Name: "main",
 		},
-		Decls:      append([]ast.Decl{importDecl}, genDeclToDecl(constDecls)...),
+		Decls:      append([]ast.Decl{importDecl}, GenDeclToDecl(constDecls)...),
 		Scope:      nil,
 		Imports:    imports,
 		Unresolved: nil,
 		Comments:   nil,
 	}
-
 }
 
-func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
-	for _, decl := range funcDecls {
-		newFuncDecls = append(newFuncDecls, astcopy.FuncDecl(decl))
-	}
-	return
-}
-
-func ExtractCalledFuncsFromFuncDeclRecursive(pkgs map[string]*packages.Package, packageName, funcName string, foundedFuncNames []string) (funcs map[string]map[string]*types.Func, funcDecls map[string][]*ast.FuncDecl, err error) {
-	pkg := pkgs[packageName]
-	funcDecl := findFuncDeclByName(pkg.Syntax, funcName)
+func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *types.Func, objects []types.Object) ([]types.Object, error) {
+	pkg := pkgs[f.Pkg().Path()]
+	funcDecl := findFuncDeclByName(pkg.Syntax, f.Name())
 	if funcDecl == nil {
-		return nil, nil, errors.New("specified function is not found: " + funcName)
+		return nil, errors.New("specified function is not found: " + f.Name())
 	}
 
-	funcDecls = map[string][]*ast.FuncDecl{}
-	funcDecls[packageName] = append(funcDecls[packageName], funcDecl)
 	calledFuncs := extractCalledFuncsFromFuncDecl(pkg.TypesInfo, funcDecl)
-	newFoundedFuncs := make([]string, len(foundedFuncNames))
-	copy(newFoundedFuncs, foundedFuncNames)
-	newFoundedFuncs = append(newFoundedFuncs, funcDecl.Name.Name)
-
-	funcs = map[string]map[string]*types.Func{}
+	typeNames := extractStructFromFuncDecl(pkg.TypesInfo, funcDecl)
+	objects = append(objects, typeNamesToObjects(typeNames)...)
+	objects = append(objects, f)
 	for _, f := range calledFuncs {
-		targetPkgName := f.Pkg().Name()
-		if util.IsStandardPackage(targetPkgName) {
+		if f.Pkg() == nil || util.IsStandardPackage(f.Pkg().Path()) {
 			continue
 		}
 
 		// 既に発見済みの関数の場合はスキップ
-		if isFuncName(foundedFuncNames, f.Name()) {
+		if _, ok := findObject(objects, f); ok {
 			continue
 		}
 
-		if funcs[targetPkgName] == nil {
-			funcs[targetPkgName] = map[string]*types.Func{}
-		}
-		funcs[targetPkgName][f.Name()] = f
-		newFuncs, newFuncDecls, err := ExtractCalledFuncsFromFuncDeclRecursive(pkgs, targetPkgName, f.Name(), newFoundedFuncs)
+		objs, err := ExtractObjectsFromFuncDeclRecursive(pkgs, f, objects)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		//funcs = append(funcs, newFuncs...)
-		funcs = mergeFuncMapMap(funcs, newFuncs)
-
-		for pkgName, decls := range newFuncDecls {
-			funcDecls[pkgName] = append(funcDecls[pkgName], decls...)
-		}
+		objects = objs
 	}
-	return
+	return objects, nil
 }
 
-func mergeFuncMapMap(m1, m2 map[string]map[string]*types.Func) map[string]map[string]*types.Func {
-	nm := copyFuncMapMap(m1)
-	for pkgName, cm := range m2 {
-		nm[pkgName] = mergeFuncMap(nm[pkgName], cm)
-	}
-	return nm
-}
-
-func mergeFuncMap(m1, m2 map[string]*types.Func) map[string]*types.Func {
-	cpm1 := copyFuncMap(m1)
-	for funcName, f := range m2 {
-		cpm1[funcName] = f
-	}
-	return cpm1
-}
-
-func copyFuncMapMap(m map[string]map[string]*types.Func) map[string]map[string]*types.Func {
-	nm := map[string]map[string]*types.Func{}
-	for pkgName, m2 := range m {
-		nm[pkgName] = copyFuncMap(m2)
-	}
-	return nm
-}
-
-func copyFuncMap(m map[string]*types.Func) map[string]*types.Func {
-	nm := map[string]*types.Func{}
-	for funcName, f := range m {
-		nm[funcName] = f
-	}
-	return nm
-}
-
-func isFuncName(funcNames []string, funcName string) bool {
-	for _, n := range funcNames {
-		if n == funcName {
-			return true
-		}
-	}
-	return false
-}
-
-// findFuncDeclByName は指定された名前の関数をfilesから検索して返す。なければnil
-func findFuncDeclByName(files []*ast.File, name string) *ast.FuncDecl {
-	for _, file := range files {
-		for _, decl := range file.Decls {
-			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-				if funcDecl.Name.Name == name {
-					return funcDecl
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数一覧を返す。
+// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
 func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
-		if t, _ := node.(*ast.Ident); t != nil {
-			obj := info.ObjectOf(t)
-			if tFunc, _ := obj.(*types.Func); tFunc != nil {
-				// 自分自身は無視
-				if obj.Name() != targetFuncDecl.Name.Name {
-					funcs = append(funcs, tFunc)
-				}
+		if callExpr, ok := node.(*ast.CallExpr); ok {
+			if f := callExprToFunc(info, callExpr); f != nil && f.Name() != targetFuncDecl.Name.Name {
+				funcs = append(funcs, f)
 			}
-			return false
 		}
 		return true
 	})
 	return funcs
 }
 
-func RenameExternalPackageFunctions(decls map[string][]*ast.FuncDecl, funcMapMap map[string]map[string]*types.Func) {
-	for funcDeclPkgName, fDecls := range decls {
-		for _, fDecl := range fDecls {
-			astutil.Apply(fDecl, func(cursor *astutil.Cursor) bool {
-				if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
-					if ident, ok := callExpr.Fun.(*ast.Ident); ok {
-						f, ok := funcMapMap[funcDeclPkgName][ident.Name]
-						if !ok {
-							return true
-						}
-						// 置き換え
-						callExpr := &ast.CallExpr{
-							Fun: &ast.BasicLit{
-								Kind:  token.STRING,
-								Value: renameFunc(f.Pkg().Name(), ident.Name),
-							},
-							Args: callExpr.Args,
-						}
-						cursor.Replace(callExpr)
-						return true
-					}
-
-					selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
-					if !ok {
-
-						return true
-					}
-					x, ok := selExpr.X.(*ast.Ident)
-					if !ok {
-						return true
-					}
-
-					f, ok := funcMapMap[x.Name][selExpr.Sel.Name]
-					if !ok {
-						return true
-					}
-
-					// 置き換え
-					callExpr := &ast.CallExpr{
-						Fun: &ast.BasicLit{
-							Kind:  token.STRING,
-							Value: renameFunc(f.Pkg().Name(), selExpr.Sel.Name),
-						},
-						Args: callExpr.Args,
-					}
-					cursor.Replace(callExpr)
+// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
+func extractStructFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (typeNames []*types.TypeName) {
+	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
+		if compositeLit, ok := node.(*ast.CompositeLit); ok {
+			switch t := compositeLit.Type.(type) {
+			case *ast.Ident:
+				obj := info.ObjectOf(t)
+				if typeName, ok := obj.(*types.TypeName); ok {
+					typeNames = append(typeNames, typeName)
 				}
-				return true
-			}, nil)
-			fDecl.Name.Name = renameFunc(funcDeclPkgName, fDecl.Name.Name)
+			case *ast.SelectorExpr:
+				obj := info.ObjectOf(t.Sel)
+				if typeName, ok := obj.(*types.TypeName); ok {
+					typeNames = append(typeNames, typeName)
+				}
+			}
+		}
+		return true
+	})
+	return
+}
+
+func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
+	switch fun := callExpr.Fun.(type) {
+	case *ast.Ident:
+		obj := info.ObjectOf(fun)
+		tFunc, ok := obj.(*types.Func)
+		if !ok {
+			return nil
+		}
+		if tFunc.Pkg() != nil {
+			return tFunc
+		}
+		return nil
+	case *ast.SelectorExpr:
+		obj := info.ObjectOf(fun.Sel)
+		tFunc, ok := obj.(*types.Func)
+		if !ok {
+			return nil
+		}
+		return tFunc
+	}
+	return nil
+}
+
+func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
+	for i, funcDecl := range sdecls.Funcs {
+		object := sdecls.FuncObjects[i]
+		astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
+			pkg := pkgs.getPkg(object.Pkg().Path())
+			if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
+				if newCallExpr := removePackageFromCallExpr(callExpr, pkg); newCallExpr != nil {
+					cursor.Replace(newCallExpr)
+				}
+			}
+			if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
+				if newCompositeLit := removePackageFromCompositeLit(compositeLit, pkg); newCompositeLit != nil {
+					cursor.Replace(newCompositeLit)
+				}
+			}
+			return true
+		}, nil)
+
+		// 構造体のメソッドはrenameしない
+		if funcDecl.Recv == nil {
+			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg().Name(), funcDecl.Name.Name))
 		}
 	}
 }
 
-func renameFunc(pkgName, funcName string) string {
-	if pkgName == "main" {
-		return funcName
+// package名の部分を削除したCallExprを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
+// 標準パッケージの呼び出しである場合は書き換えを行いません。
+func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *ast.CallExpr {
+	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+		obj := pkg.TypesInfo.ObjectOf(ident)
+		if !ok {
+			return nil
+		}
+
+		if util.IsStandardPackage(obj.Pkg().Path()) {
+			return callExpr
+		}
+
+		// 置き換え
+		return &ast.CallExpr{
+			Fun: &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: renameFunc(obj.Pkg().Name(), ident.Name),
+			},
+			Args: callExpr.Args,
+		}
 	}
-	return pkgName + "_" + funcName
+
+	selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	obj := pkg.TypesInfo.ObjectOf(selExpr.Sel)
+	if util.IsStandardPackage(obj.Pkg().Path()) {
+		return callExpr
+	}
+
+	// 構造体のメソッドを呼び出している場合は書き換えない
+	if xident, ok := selExpr.X.(*ast.Ident); ok {
+		xobj := pkg.TypesInfo.ObjectOf(xident)
+		if _, ok := xobj.(*types.Var); ok {
+			return callExpr
+		}
+	}
+
+	// 置き換え
+	return &ast.CallExpr{
+		Fun: &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: renameFunc(obj.Pkg().Name(), selExpr.Sel.Name),
+		},
+		Args: callExpr.Args,
+	}
 }
 
-func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
-	funcDecls := declToFuncDecl(decls)
-	sort.Slice(funcDecls, func(i, j int) bool {
-		return funcDecls[i].Name.Name < funcDecls[j].Name.Name
-	})
-	return funcDeclToDecl(funcDecls)
+// package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
+func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, pkg *packages.Package) *ast.CompositeLit {
+	if _, ok := compositeLit.Type.(*ast.Ident); ok {
+		return compositeLit
+		//return &ast.CompositeLit{
+		//	Type: ast.NewIdent(ident.Name),
+		//}
+	}
+
+	selExpr, ok := compositeLit.Type.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	x, ok := selExpr.X.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	obj := pkg.TypesInfo.ObjectOf(x)
+
+	// 置き換え
+	return &ast.CompositeLit{
+		Type: ast.NewIdent(renameFunc(obj.Pkg().Name(), selExpr.Sel.Name)),
+	}
 }

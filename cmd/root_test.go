@@ -48,6 +48,13 @@ func TestRoot(t *testing.T) {
 			),
 			wantFilePath: filepath.Join(testDir, "test2", "want", "want.go.test"),
 		},
+		{
+			command: fmt.Sprintf("%s %s",
+				filepath.Join(testDir, "test3"),
+				filepath.Join(testDir, "test3", "lib"),
+			),
+			wantFilePath: filepath.Join(testDir, "test3", "want", "want.go.test"),
+		},
 	}
 
 	for _, c := range cases {

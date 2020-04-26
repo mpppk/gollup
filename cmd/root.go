@@ -3,14 +3,15 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
 	"go/format"
 	"go/token"
+	"go/types"
 	"io"
 	"os"
 
-	"github.com/mpppk/gollup/util"
 	"github.com/pkg/errors"
+
+	"github.com/mpppk/gollup/util"
 	"golang.org/x/tools/imports"
 
 	"github.com/mpppk/gollup/cmd/option"
@@ -59,19 +60,27 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				return err
 			}
 
-			funcMap, funcDecls, err := ast2.ExtractCalledFuncsFromFuncDeclRecursive(pkgs, conf.TargetPackage, conf.TargetMethod, []string{})
+			pkg, ok := pkgs.FindPkgByName(conf.TargetPackage)
+			if !ok {
+				panic("specified packages does not found: " + conf.TargetPackage)
+			}
+
+			targetPkg, ok := pkg.Types.Scope().Lookup(conf.TargetMethod).(*types.Func)
+			if !ok {
+				panic("target is not func: " + conf.TargetPackage + "." + conf.TargetMethod)
+			}
+			objects, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs.Packages, targetPkg, []types.Object{})
 			if err != nil {
 				return err
 			}
 
-			ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
-			var renamedFuncDecls []ast.Decl
-			for _, decls := range funcDecls {
-				renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
-			}
+			sdecls := ast2.NewDecls(pkgs, objects)
+			ast2.RenameExternalPackageFunctions(pkgs, sdecls)
+			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
 			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 
-			file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
+			file := ast2.NewMergedFileFromPackageInfo(pkg.Syntax)
+			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Types)...)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
 
 			buf := new(bytes.Buffer)
