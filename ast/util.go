@@ -314,3 +314,10 @@ func FindTypeGenDeclByName(files []*ast.File, name string) *ast.GenDecl {
 	}
 	return nil
 }
+
+func typeNamesToObjects(typeNames []*types.TypeName) (objects []types.Object) {
+	for _, name := range typeNames {
+		objects = append(objects, name)
+	}
+	return
+}

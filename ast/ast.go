@@ -2,7 +2,6 @@ package ast
 
 import (
 	"errors"
-	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -56,7 +55,8 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 	}
 
 	calledFuncs := extractCalledFuncsFromFuncDecl(pkg.TypesInfo, funcDecl)
-	extractStructFromFuncDecl(pkg.TypesInfo, funcDecl)
+	typeNames := extractStructFromFuncDecl(pkg.TypesInfo, funcDecl)
+	objects = append(objects, typeNamesToObjects(typeNames)...)
 	objects = append(objects, f)
 	for _, f := range calledFuncs {
 		if f.Pkg() == nil || util.IsStandardPackage(f.Pkg().Path()) {
@@ -91,26 +91,25 @@ func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDe
 }
 
 // extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
-func extractStructFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
+func extractStructFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (typeNames []*types.TypeName) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
 		if compositeLit, ok := node.(*ast.CompositeLit); ok {
 			switch t := compositeLit.Type.(type) {
 			case *ast.Ident:
 				obj := info.ObjectOf(t)
-				fmt.Println(obj)
+				if typeName, ok := obj.(*types.TypeName); ok {
+					typeNames = append(typeNames, typeName)
+				}
 			case *ast.SelectorExpr:
 				obj := info.ObjectOf(t.Sel)
-				fmt.Println(obj)
+				if typeName, ok := obj.(*types.TypeName); ok {
+					typeNames = append(typeNames, typeName)
+				}
 			}
-			//if ident, ok := compositeLit.Type.(*ast.Ident); ok {
-			//	obj := info.ObjectOf(ident)
-			//	fmt.Println(obj)
-			//	//s, ok := obj.(*types.Struct)
-			//}
 		}
 		return true
 	})
-	return funcs
+	return
 }
 
 func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
