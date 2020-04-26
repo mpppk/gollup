@@ -29,7 +29,6 @@ func NewProgramFromPackages(packageNames []string) (*Packages, error) {
 
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 	importDecl := mergeImportDecls(files)
-	constDecls := mergeConstDecls(files)
 
 	var imports []*ast.ImportSpec
 	for _, file := range files {
@@ -39,7 +38,7 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 		Name: &ast.Ident{
 			Name: "main",
 		},
-		Decls:      append([]ast.Decl{importDecl}, GenDeclToDecl(constDecls)...),
+		Decls:      []ast.Decl{importDecl},
 		Scope:      nil,
 		Imports:    imports,
 		Unresolved: nil,
@@ -55,8 +54,8 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 	}
 
 	calledFuncs := extractCalledFuncsFromFuncDecl(pkg.TypesInfo, funcDecl)
-	typeNames := extractStructFromFuncDecl(pkg.TypesInfo, funcDecl)
-	objects = append(objects, typeNamesToObjects(typeNames)...)
+	newObjects := extractObjectFromFuncDecl(pkg.TypesInfo, funcDecl)
+	objects = append(objects, newObjects...)
 	objects = append(objects, f)
 	for _, f := range calledFuncs {
 		if f.Pkg() == nil || util.IsStandardPackage(f.Pkg().Path()) {
@@ -74,10 +73,11 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 		}
 		objects = objs
 	}
+	objects = distinctObjects(objects)
 	return objects, nil
 }
 
-// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
+// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を返す
 func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (funcs []*types.Func) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
 		if callExpr, ok := node.(*ast.CallExpr); ok {
@@ -90,22 +90,20 @@ func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDe
 	return funcs
 }
 
-// extractCalledFuncsFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数を、その関数が属するパッケージ名をキーとしたmapとして返す。
-func extractStructFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (typeNames []*types.TypeName) {
+// extractStructFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数から参照されている型名を返す
+func extractObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (objects []types.Object) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
-		if compositeLit, ok := node.(*ast.CompositeLit); ok {
-			switch t := compositeLit.Type.(type) {
-			case *ast.Ident:
-				obj := info.ObjectOf(t)
-				if typeName, ok := obj.(*types.TypeName); ok {
-					typeNames = append(typeNames, typeName)
-				}
-			case *ast.SelectorExpr:
-				obj := info.ObjectOf(t.Sel)
-				if typeName, ok := obj.(*types.TypeName); ok {
-					typeNames = append(typeNames, typeName)
-				}
-			}
+		ident, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		obj := info.ObjectOf(ident)
+		if obj.Pkg() == nil {
+			return true
+		}
+		switch obj.(type) {
+		case *types.Const, *types.Var, *types.TypeName:
+			objects = append(objects, obj)
 		}
 		return true
 	})

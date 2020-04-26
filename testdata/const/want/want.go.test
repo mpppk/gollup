@@ -1,0 +1,14 @@
+package main
+
+import (
+	"fmt"
+)
+
+const ANSWER = 42
+
+func lib_F1() float64 {
+	return ANSWER
+}
+func main() {
+	fmt.Println(lib_F1())
+}

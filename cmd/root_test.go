@@ -22,38 +22,45 @@ func TestRoot(t *testing.T) {
 	}{
 		{
 			command: fmt.Sprintf("%s",
-				filepath.Join(testDir, "test1"),
+				filepath.Join(testDir, "single_pkg"),
 			),
-			wantFilePath: filepath.Join(testDir, "test1", "want", "want.go.test"),
+			wantFilePath: filepath.Join(testDir, "single_pkg", "want", "want.go.test"),
 		},
 		{
 			// execute with entry point
 			command: fmt.Sprintf("--entrypoint main.main %s",
-				filepath.Join(testDir, "test1"),
+				filepath.Join(testDir, "single_pkg"),
 			),
-			wantFilePath: filepath.Join(testDir, "test1", "want", "want.go.test"),
+			wantFilePath: filepath.Join(testDir, "single_pkg", "want", "want.go.test"),
 		},
 		{
 			command: fmt.Sprintf("%s %s",
-				filepath.Join(testDir, "test2"),
-				filepath.Join(testDir, "test2", "lib"),
+				filepath.Join(testDir, "multi_pkg"),
+				filepath.Join(testDir, "multi_pkg", "lib"),
 			),
-			wantFilePath: filepath.Join(testDir, "test2", "want", "want.go.test"),
+			wantFilePath: filepath.Join(testDir, "multi_pkg", "want", "want.go.test"),
 		},
 		{
 			// execute with entry point
 			command: fmt.Sprintf("--entrypoint main.main %s %s",
-				filepath.Join(testDir, "test2"),
-				filepath.Join(testDir, "test2", "lib"),
+				filepath.Join(testDir, "multi_pkg"),
+				filepath.Join(testDir, "multi_pkg", "lib"),
 			),
-			wantFilePath: filepath.Join(testDir, "test2", "want", "want.go.test"),
+			wantFilePath: filepath.Join(testDir, "multi_pkg", "want", "want.go.test"),
 		},
 		{
 			command: fmt.Sprintf("%s %s",
-				filepath.Join(testDir, "test3"),
-				filepath.Join(testDir, "test3", "lib"),
+				filepath.Join(testDir, "struct"),
+				filepath.Join(testDir, "struct", "lib"),
 			),
-			wantFilePath: filepath.Join(testDir, "test3", "want", "want.go.test"),
+			wantFilePath: filepath.Join(testDir, "struct", "want", "want.go.test"),
+		},
+		{
+			command: fmt.Sprintf("%s %s",
+				filepath.Join(testDir, "const"),
+				filepath.Join(testDir, "const", "lib"),
+			),
+			wantFilePath: filepath.Join(testDir, "const", "want", "want.go.test"),
 		},
 	}
 

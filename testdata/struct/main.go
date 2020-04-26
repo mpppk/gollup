@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mpppk/gollup/testdata/test3/lib"
+	"github.com/mpppk/gollup/testdata/struct/lib"
 )
 
 const ANSWER = 42
