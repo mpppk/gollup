@@ -69,53 +69,19 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			if !ok {
 				panic("target is not func: " + conf.TargetPackage + "." + conf.TargetMethod)
 			}
-			//funcMap, funcDecls, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs, conf.TargetPackage, conf.TargetMethod, []string{})
 			objects, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs.Packages, targetPkg, []types.Object{})
 			if err != nil {
 				return err
 			}
 
-			//p := ast2.NewPackages(pkgs)
-			//var decls []ast.Decl
-			//for _, object := range objects {
-			//	decl := pkgs.FindDeclByObject(object)
-			//	decls = append(decls, decl)
-			//}
 			sdecls := ast2.NewDecls(pkgs, objects)
 			ast2.RenameExternalPackageFunctions(pkgs, sdecls)
 			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
-			//var renamedFuncDecls []ast.Decl
-			//for _, decls := range sdecls.Funcs {
-			//	renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
-			//}
 			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 
 			file := ast2.NewMergedFileFromPackageInfo(pkg.Syntax)
 			file.Decls = append(file.Decls, renamedFuncDecls...)
 
-			//structNames := ast2.ListUsedStructNames(funcDecls)
-			//
-			//var structs []*ast.GenDecl
-			//for pkgName, names := range structNames {
-			//	for _, structName := range names {
-			//		pkg := pkgs[pkgName]
-			//		if genDecl := ast2.FindTypeGenDeclByName(pkg.Syntax, structName); genDecl != nil {
-			//			structs = append(structs, genDecl)
-			//		}
-			//	}
-			//}
-			//
-			//ast2.RenameExternalPackageFunctions(funcDecls, funcMap)
-			//var renamedFuncDecls []ast.Decl
-			//for _, decls := range funcDecls {
-			//	renamedFuncDecls = append(renamedFuncDecls, ast2.CopyFuncDeclsAsDecl(decls)...)
-			//}
-			//renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
-			//
-			//file := ast2.NewMergedFileFromPackageInfo(pkgs["main"].Syntax)
-			////file.Decls = append(file.Decls, ast2.GenDeclToDecl(structs)...)
-			//file.Decls = append(file.Decls, renamedFuncDecls...)
-			//
 			buf := new(bytes.Buffer)
 			if err := format.Node(buf, token.NewFileSet(), file); err != nil {
 				return errors.Wrap(err, "failed to output")
