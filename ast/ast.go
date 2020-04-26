@@ -139,20 +139,24 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 	for i, funcDecl := range sdecls.Funcs {
 		object := sdecls.FuncObjects[i]
 		astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
+			pkg := pkgs.getPkg(object.Pkg().Path())
 			if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
-				if newCallExpr := removePackageFromCallExpr(callExpr, pkgs.getPkg(object.Pkg().Path())); newCallExpr != nil {
+				if newCallExpr := removePackageFromCallExpr(callExpr, pkg); newCallExpr != nil {
 					cursor.Replace(newCallExpr)
 				}
 			}
-			//if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
-			//	if newCompositeLit := removePackageFromCompositeLit(compositeLit, funcDeclPkgPath, funcMapMap); newCompositeLit != nil {
-			//		cursor.Replace(newCompositeLit)
-			//	}
-			//}
+			if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
+				if newCompositeLit := removePackageFromCompositeLit(compositeLit, pkg); newCompositeLit != nil {
+					cursor.Replace(newCompositeLit)
+				}
+			}
 			return true
 		}, nil)
 
-		funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg().Name(), funcDecl.Name.Name))
+		// 構造体のメソッドはrenameしない
+		if funcDecl.Recv == nil {
+			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg().Name(), funcDecl.Name.Name))
+		}
 	}
 }
 
@@ -188,6 +192,14 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		return callExpr
 	}
 
+	// 構造体のメソッドを呼び出している場合は書き換えない
+	if xident, ok := selExpr.X.(*ast.Ident); ok {
+		xobj := pkg.TypesInfo.ObjectOf(xident)
+		if _, ok := xobj.(*types.Var); ok {
+			return callExpr
+		}
+	}
+
 	// 置き換え
 	return &ast.CallExpr{
 		Fun: &ast.BasicLit{
@@ -199,30 +211,26 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 }
 
 // package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
-//func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, currentPkgName string, files []*ast.File) *ast.CompositeLit {
-//	if ident, ok := compositeLit.Type.(*ast.Ident); ok {
-//		return compositeLit
-//		return &ast.CompositeLit{
-//			Type: ast.NewIdent(ident.Name),
-//		}
-//	}
-//
-//	selExpr, ok := compositeLit.Type.(*ast.SelectorExpr)
-//	if !ok {
-//		return nil
-//	}
-//	x, ok := selExpr.X.(*ast.Ident)
-//	if !ok {
-//		return nil
-//	}
-//
-//	f, ok := funcMapMap[x.Name][selExpr.Sel.Name]
-//	if !ok {
-//		return nil
-//	}
-//
-//	// 置き換え
-//	return &ast.CompositeLit{
-//		Type: ast.NewIdent(renameFunc(f.Pkg().Name(), selExpr.Sel.Name)),
-//	}
-//}
+func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, pkg *packages.Package) *ast.CompositeLit {
+	if _, ok := compositeLit.Type.(*ast.Ident); ok {
+		return compositeLit
+		//return &ast.CompositeLit{
+		//	Type: ast.NewIdent(ident.Name),
+		//}
+	}
+
+	selExpr, ok := compositeLit.Type.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	x, ok := selExpr.X.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	obj := pkg.TypesInfo.ObjectOf(x)
+
+	// 置き換え
+	return &ast.CompositeLit{
+		Type: ast.NewIdent(renameFunc(obj.Pkg().Name(), selExpr.Sel.Name)),
+	}
+}

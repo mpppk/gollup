@@ -2,23 +2,19 @@ package main
 
 import (
 	"fmt"
-	"math"
 )
 
 const ANSWER = 42
 
-func F1() int {
-	return f()
+type S struct{}
+
+func (S *S) F() int {
+	return 1
 }
-func f() int {
+func F1() int {
 	return ANSWER
 }
-func lib_F1() float64 {
-	return lib_f2()
-}
-func lib_f2() float64 {
-	return math.Sqrt(42)
-}
 func main() {
-	fmt.Println(F1(), lib_F1())
+	s := S{}
+	fmt.Println(F1(), s.F())
 }
