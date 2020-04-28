@@ -62,6 +62,30 @@ func TestRoot(t *testing.T) {
 			),
 			wantFilePath: filepath.Join(testDir, "const", "want", "want.go.test"),
 		},
+		// duplicated name const is not supported yet
+		//{
+		//	command: fmt.Sprintf("%s %s",
+		//		filepath.Join(testDir, "dup_const"),
+		//		filepath.Join(testDir, "dup_const", "lib"),
+		//	),
+		//	wantFilePath: filepath.Join(testDir, "dup_const", "want", "want.go.test"),
+		//},
+		// duplicated name struct is not supported yet
+		//{
+		//	command: fmt.Sprintf("%s %s",
+		//		filepath.Join(testDir, "dup_struct"),
+		//		filepath.Join(testDir, "dup_struct", "lib"),
+		//	),
+		//	wantFilePath: filepath.Join(testDir, "dup_struct", "want", "want.go.test"),
+		//},
+		// duplicated name struct is not supported yet
+		//{
+		//	command: fmt.Sprintf("%s %s",
+		//		filepath.Join(testDir, "nested_struct"),
+		//		filepath.Join(testDir, "nested_struct", "lib"),
+		//	),
+		//	wantFilePath: filepath.Join(testDir, "nested_struct", "want", "want.go.test"),
+		//},
 	}
 
 	for _, c := range cases {
