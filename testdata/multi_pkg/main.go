@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mpppk/gollup/testdata/test2/lib"
+	"github.com/mpppk/gollup/testdata/multi_pkg/lib"
 )
 
 const ANSWER = 42
