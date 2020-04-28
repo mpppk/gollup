@@ -137,11 +137,11 @@ func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
 	return
 }
 
-func renameFunc(pkgName, funcName string) string {
-	if pkgName == "main" {
+func renameFunc(pkg *types.Package, funcName string) string {
+	if pkg == nil || pkg.Name() == "main" {
 		return funcName
 	}
-	return pkgName + "_" + funcName
+	return pkg.Name() + "_" + funcName
 }
 
 func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {

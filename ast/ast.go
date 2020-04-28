@@ -153,7 +153,7 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 
 		// 構造体のメソッドはrenameしない
 		if funcDecl.Recv == nil {
-			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg().Name(), funcDecl.Name.Name))
+			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg(), funcDecl.Name.Name))
 		}
 	}
 }
@@ -175,7 +175,7 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		return &ast.CallExpr{
 			Fun: &ast.BasicLit{
 				Kind:  token.STRING,
-				Value: renameFunc(obj.Pkg().Name(), ident.Name),
+				Value: renameFunc(obj.Pkg(), ident.Name),
 			},
 			Args: callExpr.Args,
 		}
@@ -202,7 +202,7 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 	return &ast.CallExpr{
 		Fun: &ast.BasicLit{
 			Kind:  token.STRING,
-			Value: renameFunc(obj.Pkg().Name(), selExpr.Sel.Name),
+			Value: renameFunc(obj.Pkg(), selExpr.Sel.Name),
 		},
 		Args: callExpr.Args,
 	}
@@ -229,6 +229,6 @@ func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, pkg *packages
 
 	// 置き換え
 	return &ast.CompositeLit{
-		Type: ast.NewIdent(renameFunc(obj.Pkg().Name(), selExpr.Sel.Name)),
+		Type: ast.NewIdent(renameFunc(obj.Pkg(), selExpr.Sel.Name)),
 	}
 }
