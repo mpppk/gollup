@@ -54,7 +54,7 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 	}
 
 	calledFuncs := extractCalledFuncsFromFuncDecl(pkg.TypesInfo, funcDecl)
-	newObjects := extractObjectFromFuncDecl(pkg.TypesInfo, funcDecl)
+	newObjects := extractNonStandardObjectFromFuncDecl(pkg.TypesInfo, funcDecl)
 	objects = append(objects, newObjects...)
 	objects = append(objects, f)
 	for _, f := range calledFuncs {
@@ -91,14 +91,14 @@ func extractCalledFuncsFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDe
 }
 
 // extractStructFromFuncDecl は指定したパッケージの指定したfuncDecl内で呼び出されている関数から参照されている型名を返す
-func extractObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (objects []types.Object) {
+func extractNonStandardObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.FuncDecl) (objects []types.Object) {
 	ast.Inspect(targetFuncDecl, func(node ast.Node) bool {
 		ident, ok := node.(*ast.Ident)
 		if !ok {
 			return true
 		}
 		obj := info.ObjectOf(ident)
-		if obj.Pkg() == nil {
+		if obj == nil || obj.Pkg() == nil || util.IsStandardPackage(obj.Pkg().Path()) {
 			return true
 		}
 		switch obj.(type) {
@@ -163,11 +163,7 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *ast.CallExpr {
 	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
 		obj := pkg.TypesInfo.ObjectOf(ident)
-		if !ok {
-			return nil
-		}
-
-		if util.IsStandardPackage(obj.Pkg().Path()) {
+		if obj == nil || obj.Pkg() == nil || util.IsStandardPackage(obj.Pkg().Path()) {
 			return callExpr
 		}
 

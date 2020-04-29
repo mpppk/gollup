@@ -62,6 +62,13 @@ func TestRoot(t *testing.T) {
 			),
 			wantFilePath: filepath.Join(testDir, "const", "want", "want.go.test"),
 		},
+		{
+			command: fmt.Sprintf("%s %s",
+				filepath.Join(testDir, "compro"),
+				filepath.Join(testDir, "compro", "lib"),
+			),
+			wantFilePath: filepath.Join(testDir, "compro", "want", "want.go.test"),
+		},
 		// duplicated name const is not supported yet
 		//{
 		//	command: fmt.Sprintf("%s %s",
