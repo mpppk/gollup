@@ -48,6 +48,9 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 
 func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *types.Func, objects []types.Object) ([]types.Object, error) {
 	pkg := pkgs[f.Pkg().Path()]
+	if pkg == nil {
+		return nil, errors.New("specified function is not found in pkgs: " + f.Name())
+	}
 	funcDecl := findFuncDeclByName(pkg.Syntax, f.Name())
 	if funcDecl == nil {
 		return nil, errors.New("specified function is not found: " + f.Name())
@@ -58,7 +61,7 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 	objects = append(objects, newObjects...)
 	objects = append(objects, f)
 	for _, f := range calledFuncs {
-		if f.Pkg() == nil || util.IsStandardPackage(f.Pkg().Path()) {
+		if !util.HasPkg(f) || util.IsStandardPackage(f.Pkg().Path()) {
 			continue
 		}
 
@@ -98,7 +101,7 @@ func extractNonStandardObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.
 			return true
 		}
 		obj := info.ObjectOf(ident)
-		if obj == nil || obj.Pkg() == nil || util.IsStandardPackage(obj.Pkg().Path()) {
+		if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
 			return true
 		}
 		switch obj.(type) {
@@ -155,7 +158,49 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 		if funcDecl.Recv == nil {
 			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg(), funcDecl.Name.Name))
 		}
+
+		// 他ライブラリの構造体などを引数に取っていればrename
+		if funcDecl.Type.Params != nil {
+			for i, param := range funcDecl.Type.Params.List {
+				if name, isPtr, ok := getFieldName(param); ok {
+					if isPtr {
+						funcDecl.Type.Params.List[i].Type = &ast.StarExpr{
+							X: ast.NewIdent(name),
+						}
+					} else {
+						funcDecl.Type.Params.List[i].Type = ast.NewIdent(name)
+					}
+				}
+			}
+		}
+
+		// 他ライブラリの構造体などが戻り値であればrename
+		if funcDecl.Type.Results != nil {
+			for i, result := range funcDecl.Type.Results.List {
+				if name, isPtr, ok := getFieldName(result); ok {
+					if isPtr {
+						funcDecl.Type.Results.List[i].Type = &ast.StarExpr{
+							X: ast.NewIdent(name),
+						}
+					} else {
+						funcDecl.Type.Results.List[i].Type = ast.NewIdent(name)
+					}
+				}
+			}
+		}
 	}
+}
+
+func getFieldName(field *ast.Field) (string, bool, bool) {
+	switch t := field.Type.(type) {
+	case *ast.SelectorExpr:
+		return t.Sel.Name, false, true
+	case *ast.StarExpr:
+		if selExpr, ok := t.X.(*ast.SelectorExpr); ok {
+			return selExpr.Sel.Name, true, true
+		}
+	}
+	return "", false, false
 }
 
 // package名の部分を削除したCallExprを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
@@ -163,7 +208,7 @@ func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *ast.CallExpr {
 	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
 		obj := pkg.TypesInfo.ObjectOf(ident)
-		if obj == nil || obj.Pkg() == nil || util.IsStandardPackage(obj.Pkg().Path()) {
+		if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
 			return callExpr
 		}
 
@@ -182,7 +227,7 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		return nil
 	}
 	obj := pkg.TypesInfo.ObjectOf(selExpr.Sel)
-	if util.IsStandardPackage(obj.Pkg().Path()) {
+	if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
 		return callExpr
 	}
 
