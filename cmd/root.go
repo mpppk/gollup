@@ -55,7 +55,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				pkgDirs = []string{"."}
 			}
 
-			pkgs, err := ast2.NewProgramFromPackages(pkgDirs)
+			pkgs, _, err := ast2.NewProgramFromPackages(pkgDirs)
 			if err != nil {
 				return err
 			}

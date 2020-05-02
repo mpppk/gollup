@@ -1,19 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 )
 
 type S struct{}
 
-func (S *S) F() int {
-	return 1
+func F(reader io.Reader) {
 }
 func F1(s *S) int {
 	return s.F()
 }
 func F2(s S) int {
 	return s.F()
+}
+func (S *S) F() int {
+	return 1
 }
 func lib_NewS() *S {
 	return &S{}
@@ -23,4 +27,5 @@ func main() {
 	fmt.Println(F1(s1))
 	s2 := S{}
 	fmt.Println(F2(s2))
+	F(bytes.NewBufferString("xxx"))
 }

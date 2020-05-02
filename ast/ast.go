@@ -13,18 +13,20 @@ import (
 	"github.com/mpppk/gollup/util"
 )
 
-func NewProgramFromPackages(packageNames []string) (*Packages, error) {
+func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, error) {
+	fset := token.NewFileSet()
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
+		Fset: fset,
 	}
 	pkgs, err := packages.Load(config, packageNames...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if packages.PrintErrors(pkgs) > 0 {
-		return nil, errors.New("error occurred in NewProgramFromPackages")
+		return nil, nil, errors.New("error occurred in NewProgramFromPackages")
 	}
-	return NewPackages(pkgs), nil
+	return NewPackages(pkgs), fset, nil
 }
 
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
@@ -139,68 +141,99 @@ func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
 func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
 	for i, funcDecl := range sdecls.Funcs {
 		object := sdecls.FuncObjects[i]
-		astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
-			pkg := pkgs.getPkg(object.Pkg().Path())
-			if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
-				if newCallExpr := removePackageFromCallExpr(callExpr, pkg); newCallExpr != nil {
-					cursor.Replace(newCallExpr)
-				}
-			}
-			if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
-				if newCompositeLit := removePackageFromCompositeLit(compositeLit, pkg); newCompositeLit != nil {
-					cursor.Replace(newCompositeLit)
-				}
-			}
-			return true
-		}, nil)
+		pkg := pkgs.getPkg(object.Pkg().Path())
+		renameExternalPackageFunction(funcDecl, object, pkg)
+	}
+}
 
-		// 構造体のメソッドはrenameしない
-		if funcDecl.Recv == nil {
-			funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg(), funcDecl.Name.Name))
-		}
-
-		// 他ライブラリの構造体などを引数に取っていればrename
-		if funcDecl.Type.Params != nil {
-			for i, param := range funcDecl.Type.Params.List {
-				if name, isPtr, ok := getFieldName(param); ok {
-					if isPtr {
-						funcDecl.Type.Params.List[i].Type = &ast.StarExpr{
-							X: ast.NewIdent(name),
-						}
-					} else {
-						funcDecl.Type.Params.List[i].Type = ast.NewIdent(name)
-					}
-				}
+func renameExternalPackageFunction(funcDecl *ast.FuncDecl, object types.Object, pkg *packages.Package) {
+	astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
+		if callExpr, ok := cursor.Node().(*ast.CallExpr); ok {
+			if newCallExpr := removePackageFromCallExpr(callExpr, pkg); newCallExpr != nil {
+				cursor.Replace(newCallExpr)
 			}
 		}
+		if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
+			if newCompositeLit := removePackageFromCompositeLit(compositeLit, pkg); newCompositeLit != nil {
+				cursor.Replace(newCompositeLit)
+			}
+		}
+		return true
+	}, nil)
 
-		// 他ライブラリの構造体などが戻り値であればrename
-		if funcDecl.Type.Results != nil {
-			for i, result := range funcDecl.Type.Results.List {
-				if name, isPtr, ok := getFieldName(result); ok {
-					if isPtr {
-						funcDecl.Type.Results.List[i].Type = &ast.StarExpr{
-							X: ast.NewIdent(name),
-						}
-					} else {
-						funcDecl.Type.Results.List[i].Type = ast.NewIdent(name)
-					}
-				}
+	// 構造体のメソッドはrenameしない
+	if funcDecl.Recv == nil {
+		funcDecl.Name = ast.NewIdent(renameFunc(object.Pkg(), funcDecl.Name.Name))
+	}
+
+	renameFuncDeclParams(funcDecl, pkg)
+	renameFuncDeclResults(funcDecl, pkg)
+}
+
+// 他ライブラリの構造体などを引数に取っていればrename
+func renameFuncDeclParams(funcDecl *ast.FuncDecl, pkg *packages.Package) {
+	if funcDecl.Type.Params == nil {
+		return
+	}
+	for i, result := range funcDecl.Type.Params.List {
+		switch t := result.Type.(type) {
+		case *ast.SelectorExpr:
+			obj := pkg.TypesInfo.ObjectOf(t.Sel)
+			if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
+				continue
+			}
+			funcDecl.Type.Params.List[i].Type = ast.NewIdent(t.Sel.Name)
+		case *ast.StarExpr:
+			selExpr, ok := t.X.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+			obj := pkg.TypesInfo.ObjectOf(selExpr.Sel)
+			if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
+				continue
+			}
+			funcDecl.Type.Params.List[i].Type = &ast.StarExpr{
+				X: ast.NewIdent(selExpr.Sel.Name),
 			}
 		}
 	}
 }
 
-func getFieldName(field *ast.Field) (string, bool, bool) {
-	switch t := field.Type.(type) {
-	case *ast.SelectorExpr:
-		return t.Sel.Name, false, true
-	case *ast.StarExpr:
-		if selExpr, ok := t.X.(*ast.SelectorExpr); ok {
-			return selExpr.Sel.Name, true, true
+// 他ライブラリの構造体などが戻り値であればrename
+func renameFuncDeclResults(funcDecl *ast.FuncDecl, pkg *packages.Package) {
+	if funcDecl.Type.Results == nil {
+		return
+	}
+	for i, result := range funcDecl.Type.Results.List {
+		switch t := result.Type.(type) {
+		case *ast.SelectorExpr:
+			ident, ok := result.Type.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			obj := pkg.TypesInfo.ObjectOf(ident)
+			if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
+				continue
+			}
+			funcDecl.Type.Results.List[i].Type = ast.NewIdent(t.Sel.Name)
+		case *ast.StarExpr:
+			selExpr, ok := t.X.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+			ident, ok := result.Type.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			obj := pkg.TypesInfo.ObjectOf(ident)
+			if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
+				continue
+			}
+			funcDecl.Type.Results.List[i].Type = &ast.StarExpr{
+				X: ast.NewIdent(selExpr.Sel.Name),
+			}
 		}
 	}
-	return "", false, false
 }
 
 // package名の部分を削除したCallExprを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
