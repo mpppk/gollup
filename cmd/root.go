@@ -76,6 +76,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 
 			sdecls := ast2.NewDecls(pkgs, objects)
 			ast2.RenameExternalPackageFunctions(pkgs, sdecls)
+			ast2.RemoveCommentsFromFuncDecls(sdecls.Funcs)
 			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
 			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 

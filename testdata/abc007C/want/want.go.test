@@ -2,29 +2,214 @@ package main
 
 import (
 	"bufio"
+	"container/list"
+	"errors"
 	"fmt"
+	"io"
+	"math"
 	"os"
 	"strconv"
+	"strings"
 )
 
-func lib_MaxInt(v1, v2 int) int {
-	if v1 > v2 {
-		return v1
+type Input struct {
+	lines [][]string // Input は複数行からなる文字列から値をいい感じに取り出すためのメソッドを提供します.
+
+}
+
+func (i *Input) GetIntLine(index int) ([]int, error) {
+	if err := i.validateRowIndex(index); err != nil {
+		return nil, err
 	}
-	return v2
+	newLine, err := lib_StringSliceToIntSlice(i.lines[index])
+	if err != nil {
+		return nil, fmt.Errorf("%dth index: %v", index, err)
+	}
+	return newLine, nil
+}
+func (i *Input) GetLine(index int) ([]string, error) {
+	if err := i.validateRowIndex(index); err != nil {
+		return nil, err
+	}
+	return i.lines[index], nil
+}
+func (i *Input) GetStringLinesFrom(fromIndex int) (newLines [][]string, err error) {
+	for index := range i.lines {
+		if index < fromIndex {
+			continue
+		}
+		newLine, err := i.GetLine(index)
+		if err != nil {
+			return nil, err
+		}
+		newLines = append(newLines, newLine)
+	}
+	return
+}
+func (i *Input) MustGetIntLine(index int) []int {
+	_v0, _err := i.GetIntLine(index)
+	if _err != nil {
+		panic(_err)
+	}
+	return _v0
+}
+func (i *Input) MustReadAsStringGridFrom(fromIndex int) [][]string {
+	_v0, _err := i.ReadAsStringGridFrom(fromIndex)
+	if _err != nil {
+		panic(_err)
+	}
+	return _v0
+}
+func (i *Input) ReadAsStringGridFrom(fromIndex int) ([][]string, error) {
+	lines, err := i.GetStringLinesFrom(fromIndex)
+	if err != nil {
+		return nil, err
+	}
+	var m [][]string
+	for _, line := range lines {
+		if len(line) > 1 {
+			return nil, fmt.Errorf("unexpected length line: %v", line)
+		}
+		var mLine []string
+		for _, r := range line[0] {
+			mLine = append(mLine, string(r))
+		}
+		m = append(m, mLine)
+	}
+	return m, nil
+}
+func (i *Input) validateRowIndex(index int) error {
+	if index >= len(i.lines) {
+		return errors.New(fmt.Sprintf("index(%d) is larger than lines(%d)", index, len(i.lines)))
+	}
+	if index < 0 {
+		return errors.New(fmt.Sprintf("index is under zero: %d", index))
+	}
+	return nil
+}
+func lib_MustNewInputFromReader(reader *bufio.Reader) *Input {
+	_v0, _err := lib_NewInputFromReader(reader)
+	if _err != nil {
+		panic(_err)
+	}
+	return _v0
+}
+func lib_NewInputFromReader(reader *bufio.Reader) (*Input, error) {
+	lines, err := lib_toLinesFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new Input from reader: %v", err)
+	}
+	return &Input{lines: lines}, nil
+}
+func lib_NewIntGridMap(row, col int, defaultValue int) (m [][]int) {
+	for i := 0; i < row; i++ {
+		var newLine []int
+		for j := 0; j < col; j++ {
+			newLine = append(newLine, defaultValue)
+		}
+		m = append(m, newLine)
+	}
+	return
+}
+func lib_StringSliceToIntSlice(line []string) (ValueLine []int, err error) {
+	newLine, err := lib_toSpecificBitIntLine(line, 64)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range newLine {
+		ValueLine = append(ValueLine, int(v))
+	}
+	return
+}
+func lib_TrimSpaceAndNewLineCodeAndTab(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool {
+		return r == ' ' || r == '\r' || r == '\n' || r == '\t'
+	})
+}
+func lib_readLineAsChunks(reader *bufio.Reader) (chunks []string, err error) {
+	for {
+		chunk, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, string(chunk))
+		if !isPrefix {
+			return chunks, nil
+		}
+	}
+}
+func lib_toLinesFromReader(reader *bufio.Reader) (lines [][]string, err error) {
+	for {
+		chunks, err := lib_readLineAsChunks(reader)
+		if err == io.EOF {
+			return lines, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read line from reader: %v", err)
+		}
+		lineStr := lib_TrimSpaceAndNewLineCodeAndTab(strings.Join(chunks, ""))
+		line := strings.Split(lineStr, " ")
+		lines = append(lines, line)
+	}
+}
+func lib_toSpecificBitIntLine(line []string, bitSize int) (intLine []int64, err error) {
+	for j, v := range line {
+		intV, err := strconv.ParseInt(v, 10, bitSize)
+		if err != nil {
+			return nil, fmt.Errorf(fmt.Sprintf("%dth value: %v", j, err.Error()))
+		}
+		intLine = append(intLine, intV)
+	}
+	return intLine, nil
 }
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	const initialBufSize = 4096
-	const maxBufSize = 1000000
-	scanner.Buffer(make([]byte, initialBufSize), maxBufSize)
-	scanner.Split(bufio.ScanWords)
-	var N int64
-	scanner.Scan()
-	N, _ = strconv.ParseInt(scanner.Text(), 10, 64)
-	fmt.Println(solve(N))
+	input := lib_MustNewInputFromReader(bufio.NewReader(io.Reader(os.Stdin)))
+	fmt.Println(solve(input))
 }
-func solve(N int64) string {
-	fmt.Println(lib_MaxInt(1, 2))
-	return ""
+func solve(input *Input) int {
+	startIndices := input.MustGetIntLine(1)
+	startRowIndex, startColIndex := startIndices[0]-1, startIndices[1]-1
+	endIndices := input.MustGetIntLine(2)
+	endRowIndex, endColIndex := endIndices[0]-1, endIndices[1]-1
+	m := input.MustReadAsStringGridFrom(3)
+	minStepMap := lib_NewIntGridMap(len(m), len(m[0]), math.MaxInt32)
+	step := 0
+	l := list.New()
+	l.PushBack([2]int{startRowIndex, startColIndex})
+	minStepMap[startRowIndex][startColIndex] = 0
+	for l.Len() > 0 {
+		pos, ok := l.Remove(l.Front()).([2]int)
+		if !ok {
+			panic("invalid pos")
+		}
+		step = minStepMap[pos[0]][pos[1]]
+		if pos[0] == endRowIndex && pos[1] == endColIndex {
+			return step
+		}
+		s := m[pos[0]][pos[1]]
+		if s == "#" {
+			continue
+		}
+		nextX, nextY := pos[0]-1, pos[1]
+		if pos[0] > 0 && step+1 < minStepMap[nextX][nextY] {
+			minStepMap[nextX][nextY] = step + 1
+			l.PushBack([2]int{nextX, nextY})
+		}
+		nextX, nextY = pos[0]+1, pos[1]
+		if len(m) > pos[0]+1 && step+1 < minStepMap[nextX][nextY] {
+			minStepMap[nextX][nextY] = step + 1
+			l.PushBack([2]int{nextX, nextY})
+		}
+		nextX, nextY = pos[0], pos[1]-1
+		if pos[1] > 0 && step+1 < minStepMap[nextX][nextY] {
+			minStepMap[nextX][nextY] = step + 1
+			l.PushBack([2]int{nextX, nextY})
+		}
+		nextX, nextY = pos[0], pos[1]+1
+		if len(m[0]) > pos[1]+1 && step+1 < minStepMap[nextX][nextY] {
+			minStepMap[nextX][nextY] = step + 1
+			l.PushBack([2]int{nextX, nextY})
+		}
+	}
+	panic("no route")
 }
