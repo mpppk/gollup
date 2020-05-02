@@ -1,0 +1,26 @@
+package main
+
+import (
+	"fmt"
+)
+
+type S struct{}
+
+func (S *S) F() int {
+	return 1
+}
+func F1(s *S) int {
+	return s.F()
+}
+func F2(s S) int {
+	return s.F()
+}
+func lib_NewS() *S {
+	return &S{}
+}
+func main() {
+	s1 := lib_NewS()
+	fmt.Println(F1(s1))
+	s2 := S{}
+	fmt.Println(F2(s2))
+}
