@@ -13,18 +13,20 @@ import (
 	"github.com/mpppk/gollup/util"
 )
 
-func NewProgramFromPackages(packageNames []string) (*Packages, error) {
+func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, error) {
+	fset := token.NewFileSet()
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
+		Fset: fset,
 	}
 	pkgs, err := packages.Load(config, packageNames...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if packages.PrintErrors(pkgs) > 0 {
-		return nil, errors.New("error occurred in NewProgramFromPackages")
+		return nil, nil, errors.New("error occurred in NewProgramFromPackages")
 	}
-	return NewPackages(pkgs), nil
+	return NewPackages(pkgs), fset, nil
 }
 
 func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {

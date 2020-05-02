@@ -10,14 +10,14 @@ type S struct{}
 
 func F(reader io.Reader) {
 }
-func (S *S) F() int {
-	return 1
-}
 func F1(s *S) int {
 	return s.F()
 }
 func F2(s S) int {
 	return s.F()
+}
+func (S *S) F() int {
+	return 1
 }
 func lib_NewS() *S {
 	return &S{}

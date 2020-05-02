@@ -17,10 +17,12 @@ const testDir = "../testdata"
 
 func TestRoot(t *testing.T) {
 	cases := []struct {
+		name         string
 		command      string
 		wantFilePath string
 	}{
 		{
+			name: "single_pkg",
 			command: fmt.Sprintf("%s",
 				filepath.Join(testDir, "single_pkg"),
 			),
@@ -28,12 +30,14 @@ func TestRoot(t *testing.T) {
 		},
 		{
 			// execute with entry point
+			name: "single_pkg with entry point",
 			command: fmt.Sprintf("--entrypoint main.main %s",
 				filepath.Join(testDir, "single_pkg"),
 			),
 			wantFilePath: filepath.Join(testDir, "single_pkg", "want", "want.go.test"),
 		},
 		{
+			name: "multi_pkg",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "multi_pkg"),
 				filepath.Join(testDir, "multi_pkg", "lib"),
@@ -42,6 +46,7 @@ func TestRoot(t *testing.T) {
 		},
 		{
 			// execute with entry point
+			name: "multi_pkg with entry point",
 			command: fmt.Sprintf("--entrypoint main.main %s %s",
 				filepath.Join(testDir, "multi_pkg"),
 				filepath.Join(testDir, "multi_pkg", "lib"),
@@ -49,6 +54,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "multi_pkg", "want", "want.go.test"),
 		},
 		{
+			name: "struct",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "struct"),
 				filepath.Join(testDir, "struct", "lib"),
@@ -56,6 +62,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "struct", "want", "want.go.test"),
 		},
 		{
+			name: "const",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "const"),
 				filepath.Join(testDir, "const", "lib"),
@@ -63,6 +70,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "const", "want", "want.go.test"),
 		},
 		{
+			name: "compro",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "compro"),
 				filepath.Join(testDir, "compro", "lib"),
@@ -70,6 +78,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "compro", "want", "want.go.test"),
 		},
 		{
+			name: "params_and_results",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "params_and_results"),
 				filepath.Join(testDir, "params_and_results", "lib"),
@@ -132,7 +141,7 @@ func TestRoot(t *testing.T) {
 		want := string(contents)
 		want = removeCarriageReturn(want)
 		if want != get {
-			t.Errorf("unexpected response: want:\n%s\nget:\n%s", want, get)
+			t.Errorf(":%s unexpected response: want:\n%s\nget:\n%s", c.name, want, get)
 		}
 	}
 }

@@ -146,8 +146,19 @@ func renameFunc(pkg *types.Package, funcName string) string {
 
 func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
 	funcDecls := declToFuncDecl(decls)
+	getRecvName := func(funcDecl *ast.FuncDecl) (recv string) {
+		if funcDecl.Recv == nil {
+			return
+		}
+		for _, field := range funcDecl.Recv.List {
+			for _, name := range field.Names {
+				recv += name.Name
+			}
+		}
+		return
+	}
 	sort.Slice(funcDecls, func(i, j int) bool {
-		return funcDecls[i].Name.Name < funcDecls[j].Name.Name
+		return getRecvName(funcDecls[i])+funcDecls[i].Name.Name < getRecvName(funcDecls[j])+funcDecls[j].Name.Name
 	})
 	return funcDeclToDecl(funcDecls)
 }
@@ -164,4 +175,10 @@ func findFuncDeclByName(files []*ast.File, name string) (funcDecl *ast.FuncDecl)
 		}
 	}
 	return nil
+}
+
+func RemoveCommentsFromFuncDecls(funcDecls []*ast.FuncDecl) {
+	for _, decl := range funcDecls {
+		decl.Doc = nil
+	}
 }

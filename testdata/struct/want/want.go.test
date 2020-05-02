@@ -8,11 +8,11 @@ const ANSWER = 42
 
 type S struct{}
 
-func (S *S) F() int {
-	return 1
-}
 func F1() int {
 	return ANSWER
+}
+func (S *S) F() int {
+	return 1
 }
 func main() {
 	s := S{}
