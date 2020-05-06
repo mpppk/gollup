@@ -80,6 +80,10 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
 			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
 
+			ast2.SortGenDecls(sdecls.Consts)
+			ast2.SortGenDecls(sdecls.Vars)
+			ast2.SortGenDecls(sdecls.Types)
+
 			file := ast2.NewMergedFileFromPackageInfo(pkg.Syntax)
 			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Consts)...)
 			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Vars)...)

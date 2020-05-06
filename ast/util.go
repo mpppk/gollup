@@ -144,6 +144,27 @@ func renameFunc(pkg *types.Package, funcName string) string {
 	return pkg.Name() + "_" + funcName
 }
 
+func SortGenDecls(genDecls []*ast.GenDecl) {
+	sort.Slice(genDecls, func(i, j int) bool {
+		spec1 := genDecls[i].Specs[0]
+		spec2 := genDecls[j].Specs[0]
+		return specToString(spec1) < specToString(spec2)
+	})
+
+}
+
+func specToString(spec ast.Spec) string {
+	switch s := spec.(type) {
+	case *ast.ImportSpec:
+		return s.Name.Name
+	case *ast.ValueSpec:
+		return s.Names[0].Name
+	case *ast.TypeSpec:
+		return s.Name.Name
+	}
+	return ""
+}
+
 func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
 	funcDecls := declToFuncDecl(decls)
 	getRecvName := func(funcDecl *ast.FuncDecl) (recv string) {
