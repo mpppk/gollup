@@ -1,0 +1,112 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+)
+
+const NO = "No"
+const YES = "Yes"
+
+type UnionFindInt struct{ nodes map[int]int }
+
+func lib_IntRange(start, end, step int) ([]int, error) {
+	if end < start {
+		return nil, fmt.Errorf("end(%v) is bigger than start(%v)", end, start)
+	}
+	s := make([]int, 0, int(1+(end-start)/step))
+	for start < end {
+		s = append(s, start)
+		start += step
+	}
+	return s, nil
+}
+func lib_MustIntRange(start, end, step int) []int {
+	_v0, _err := lib_IntRange(start, end, step)
+	if _err != nil {
+		panic(_err)
+	}
+	return _v0
+}
+func lib_NewUnionFindInt(values []int) *UnionFindInt {
+	m := map[int]int{}
+	for _, v := range values {
+		m[v] = v
+	}
+	return &UnionFindInt{nodes: m}
+}
+func lib_TernaryOPString(ok bool, v1, v2 string) string {
+	if ok {
+		return v1
+	}
+	return v2
+}
+func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	const initialBufSize = 4096
+	const maxBufSize = 1000000
+	scanner.Buffer(make([]byte, initialBufSize), maxBufSize)
+	scanner.Split(bufio.ScanWords)
+	var N int64
+	scanner.Scan()
+	N, _ = strconv.ParseInt(scanner.Text(), 10, 64)
+	var Q int64
+	scanner.Scan()
+	Q, _ = strconv.ParseInt(scanner.Text(), 10, 64)
+	P := make([]int64, Q)
+	A := make([]int64, Q)
+	B := make([]int64, Q)
+	for i := int64(0); i < Q; i++ {
+		scanner.Scan()
+		P[i], _ = strconv.ParseInt(scanner.Text(), 10, 64)
+		scanner.Scan()
+		A[i], _ = strconv.ParseInt(scanner.Text(), 10, 64)
+		scanner.Scan()
+		B[i], _ = strconv.ParseInt(scanner.Text(), 10, 64)
+	}
+	solve(N, Q, P, A, B)
+}
+func solve(N int64, Q int64, P []int64, A []int64, B []int64) {
+	unionFind := lib_NewUnionFindInt(lib_MustIntRange(0, 100001, 1))
+	for i := 0; i < int(Q); i++ {
+		p, a, b := P[i], int(A[i]), int(B[i])
+		if p == 0 {
+			unionFind.Unite(a, b)
+		} else if p == 1 {
+			fmt.Println(lib_TernaryOPString(unionFind.IsSameGroup(a, b), YES, NO))
+		}
+	}
+}
+func (u *UnionFindInt) GetRoot(value int) (int, int) {
+	v := value
+	newV := u.nodes[v]
+	cnt := 0
+	for newV != v {
+		cnt++
+		oldV := v
+		v = newV
+		newV = u.nodes[newV]
+		u.nodes[oldV] = newV
+	}
+	return newV, cnt
+}
+func (u *UnionFindInt) IsSameGroup(v1, v2 int) bool {
+	v1Root, _ := u.GetRoot(v1)
+	v2Root, _ := u.GetRoot(v2)
+	return v1Root == v2Root
+}
+func (u *UnionFindInt) Unite(v1, v2 int) (int, bool) {
+	v1Root, v1HopNum := u.GetRoot(v1)
+	v2Root, v2HopNum := u.GetRoot(v2)
+	if v1Root == v2Root {
+		return v1Root, false
+	}
+	if v1HopNum >= v2HopNum {
+		u.nodes[v2Root] = v1Root
+		return v1Root, true
+	}
+	u.nodes[v1Root] = v2Root
+	return v2Root, true
+}

@@ -67,6 +67,11 @@ func (p *Packages) getPkg(path string) *packages.Package {
 
 func (p *Packages) FindDeclByObject(object types.Object) ast.Decl {
 	pkg := p.getPkg(object.Pkg().Path())
+
+	if f, ok := object.(*types.Func); ok {
+		return findFuncDeclByFuncType(pkg.Syntax, f)
+	}
+
 	for _, file := range pkg.Syntax {
 		for _, decl := range file.Decls {
 			switch d := decl.(type) {
@@ -89,10 +94,6 @@ func (p *Packages) FindDeclByObject(object types.Object) ast.Decl {
 							return decl
 						}
 					}
-				}
-			case *ast.FuncDecl:
-				if d.Name.Name == object.Name() {
-					return decl
 				}
 			}
 		}
