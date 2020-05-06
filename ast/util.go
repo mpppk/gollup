@@ -144,6 +144,27 @@ func renameFunc(pkg *types.Package, funcName string) string {
 	return pkg.Name() + "_" + funcName
 }
 
+func SortGenDecls(genDecls []*ast.GenDecl) {
+	sort.Slice(genDecls, func(i, j int) bool {
+		spec1 := genDecls[i].Specs[0]
+		spec2 := genDecls[j].Specs[0]
+		return specToString(spec1) < specToString(spec2)
+	})
+
+}
+
+func specToString(spec ast.Spec) string {
+	switch s := spec.(type) {
+	case *ast.ImportSpec:
+		return s.Name.Name
+	case *ast.ValueSpec:
+		return s.Names[0].Name
+	case *ast.TypeSpec:
+		return s.Name.Name
+	}
+	return ""
+}
+
 func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
 	funcDecls := declToFuncDecl(decls)
 	getRecvName := func(funcDecl *ast.FuncDecl) (recv string) {
@@ -163,13 +184,40 @@ func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
 	return funcDeclToDecl(funcDecls)
 }
 
-// findFuncDeclByName は指定された名前の関数をfilesから検索して返す。なければnil
-func findFuncDeclByName(files []*ast.File, name string) (funcDecl *ast.FuncDecl) {
+// findFuncDeclByFuncType は指定された名前の関数をfilesから検索して返す。なければnil
+func findFuncDeclByFuncType(files []*ast.File, f *types.Func) (funcDecl *ast.FuncDecl) {
+	sig := f.Type().(*types.Signature)
 	for _, file := range files {
 		for _, decl := range file.Decls {
 			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-				if funcDecl.Name.Name == name {
-					return funcDecl
+				if funcDecl.Name.Name != f.Name() {
+					continue
+				}
+
+				if funcDecl.Recv == nil {
+					if sig.Recv() != nil {
+						continue
+					} else {
+						return funcDecl
+					}
+				} else {
+					t := funcDecl.Recv.List[0].Type
+					if sig.Recv() == nil {
+						continue
+					}
+					recv := sig.Recv()
+					switch expr := t.(type) {
+					case *ast.StarExpr:
+						if ident, ok := expr.X.(*ast.Ident); ok {
+							if ptr, ok := recv.Type().(*types.Pointer); ok {
+								named := ptr.Elem().(*types.Named)
+								name := named.Obj().Name()
+								if ident.Name == name {
+									return funcDecl
+								}
+							}
+						}
+					}
 				}
 			}
 		}

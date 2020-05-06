@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/ast/astutil"
 
@@ -49,11 +50,12 @@ func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 }
 
 func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *types.Func, objects []types.Object) ([]types.Object, error) {
+	log.Println("searching objects from func", f.Pkg().Name()+"."+f.Name())
 	pkg := pkgs[f.Pkg().Path()]
 	if pkg == nil {
 		return nil, errors.New("specified function is not found in pkgs: " + f.Name())
 	}
-	funcDecl := findFuncDeclByName(pkg.Syntax, f.Name())
+	funcDecl := findFuncDeclByFuncType(pkg.Syntax, f)
 	if funcDecl == nil {
 		return nil, errors.New("specified function is not found: " + f.Name())
 	}
@@ -108,7 +110,9 @@ func extractNonStandardObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.
 		}
 		switch obj.(type) {
 		case *types.Const, *types.Var, *types.TypeName:
-			objects = append(objects, obj)
+			if obj.Pkg().Name() == "main" || obj.Exported() {
+				objects = append(objects, obj)
+			}
 		}
 		return true
 	})
