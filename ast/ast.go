@@ -255,7 +255,8 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 				Kind:  token.STRING,
 				Value: renameFunc(obj.Pkg(), ident.Name),
 			},
-			Args: callExpr.Args,
+			Ellipsis: callExpr.Ellipsis,
+			Args:     callExpr.Args,
 		}
 	}
 
