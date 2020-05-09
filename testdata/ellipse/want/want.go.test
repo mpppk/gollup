@@ -25,5 +25,5 @@ func lib_MustMinInt64(values ...int64) (min int64) {
 	return min
 }
 func main() {
-	fmt.Println(lib_MustMinInt64(1, 2))
+	fmt.Println(lib_MustMinInt64(1, 2), lib_MustMinInt64([]int64{1, 2}...))
 }

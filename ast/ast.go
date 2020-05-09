@@ -7,6 +7,8 @@ import (
 	"go/types"
 	"log"
 
+	"github.com/go-toolsmith/astcopy"
+
 	"golang.org/x/tools/go/ast/astutil"
 
 	"golang.org/x/tools/go/packages"
@@ -250,14 +252,13 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		}
 
 		// 置き換え
-		return &ast.CallExpr{
-			Fun: &ast.BasicLit{
-				Kind:  token.STRING,
-				Value: renameFunc(obj.Pkg(), ident.Name),
-			},
-			Ellipsis: callExpr.Ellipsis,
-			Args:     callExpr.Args,
+		newCallExpr := astcopy.CallExpr(callExpr)
+		newCallExpr.Fun = &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: renameFunc(obj.Pkg(), ident.Name),
 		}
+		newCallExpr.Args = callExpr.Args
+		return newCallExpr
 	}
 
 	selExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
@@ -278,13 +279,13 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 	}
 
 	// 置き換え
-	return &ast.CallExpr{
-		Fun: &ast.BasicLit{
-			Kind:  token.STRING,
-			Value: renameFunc(obj.Pkg(), selExpr.Sel.Name),
-		},
-		Args: callExpr.Args,
+	newCallExpr := astcopy.CallExpr(callExpr)
+	newCallExpr.Fun = &ast.BasicLit{
+		Kind:  token.STRING,
+		Value: renameFunc(obj.Pkg(), selExpr.Sel.Name),
 	}
+	newCallExpr.Args = callExpr.Args
+	return newCallExpr
 }
 
 // package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
