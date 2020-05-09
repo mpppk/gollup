@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	fmt.Println(lib.MustMinInt64(1, 2))
+	fmt.Println(lib.MustMinInt64(1, 2), lib.MustMinInt64([]int64{1, 2}...))
 }
