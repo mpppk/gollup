@@ -4,10 +4,14 @@ import (
 	"fmt"
 )
 
-const ANSWER = 42
+const (
+	A      = 0
+	ANSWER = 42
+	B      = 1
+)
 
 func lib_F1() float64 {
-	return ANSWER
+	return ANSWER + A + B
 }
 func main() {
 	fmt.Println(lib_F1())
