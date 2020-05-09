@@ -33,6 +33,7 @@ func NewDecls(pkgs *Packages, objects []types.Object) *Decls {
 		decls = append(decls, decl)
 	}
 	sdecls := &Decls{Decls: decls, Objects: objects}
+	constDecl := &ast.GenDecl{Tok: token.CONST}
 	for i, decl := range decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
@@ -41,7 +42,18 @@ func NewDecls(pkgs *Packages, objects []types.Object) *Decls {
 				sdecls.Imports = append(sdecls.Imports, d)
 				sdecls.ImportObjects = append(sdecls.ImportObjects, objects[i])
 			case token.CONST:
-				sdecls.Consts = append(sdecls.Consts, d)
+				o := objects[i]
+				for _, spec := range d.Specs {
+					vspec := spec.(*ast.ValueSpec)
+					for i, name := range vspec.Names {
+						if o.Name() == name.Name {
+							constDecl.Specs = append(constDecl.Specs, &ast.ValueSpec{
+								Names:  []*ast.Ident{ast.NewIdent(name.Name)},
+								Values: []ast.Expr{vspec.Values[i]},
+							})
+						}
+					}
+				}
 				sdecls.ConstObjects = append(sdecls.ConstObjects, objects[i])
 			case token.TYPE:
 				sdecls.Types = append(sdecls.Types, d)
@@ -54,6 +66,10 @@ func NewDecls(pkgs *Packages, objects []types.Object) *Decls {
 			sdecls.Funcs = append(sdecls.Funcs, d)
 			sdecls.FuncObjects = append(sdecls.FuncObjects, objects[i])
 		}
+	}
+	if len(constDecl.Specs) > 0 {
+		sortSpecs(constDecl.Specs)
+		sdecls.Consts = append(sdecls.Consts, constDecl)
 	}
 	return sdecls
 }
@@ -150,7 +166,13 @@ func SortGenDecls(genDecls []*ast.GenDecl) {
 		spec2 := genDecls[j].Specs[0]
 		return specToString(spec1) < specToString(spec2)
 	})
+}
 
+func sortSpecs(specs []ast.Spec) {
+	// FIXME: sort ValueSpecs names
+	sort.Slice(specs, func(i, j int) bool {
+		return specToString(specs[i]) < specToString(specs[j])
+	})
 }
 
 func specToString(spec ast.Spec) string {

@@ -7,8 +7,10 @@ import (
 	"strconv"
 )
 
-const NO = "No"
-const YES = "Yes"
+const (
+	NO  = "No"
+	YES = "Yes"
+)
 
 type UnionFindInt struct{ nodes map[int]int }
 
