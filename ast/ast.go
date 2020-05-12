@@ -247,6 +247,10 @@ func renameFuncDeclResults(funcDecl *ast.FuncDecl, pkg *packages.Package) {
 func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *ast.CallExpr {
 	if ident, ok := callExpr.Fun.(*ast.Ident); ok {
 		obj := pkg.TypesInfo.ObjectOf(ident)
+
+		if _, ok := obj.(*types.Func); !ok {
+			return callExpr
+		}
 		if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
 			return callExpr
 		}
@@ -280,6 +284,17 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 
 	// 置き換え
 	newCallExpr := astcopy.CallExpr(callExpr)
+
+	// type castの場合は書き換えない FIXME: いつかは書き換えることになる
+	if _, ok := obj.(*types.Func); !ok {
+		newCallExpr.Fun = &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: selExpr.Sel.Name,
+		}
+		newCallExpr.Args = callExpr.Args
+		return newCallExpr
+	}
+
 	newCallExpr.Fun = &ast.BasicLit{
 		Kind:  token.STRING,
 		Value: renameFunc(obj.Pkg(), selExpr.Sel.Name),
