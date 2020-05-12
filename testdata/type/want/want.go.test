@@ -1,0 +1,15 @@
+package main
+
+import (
+	"fmt"
+)
+
+type S map[int64]int64
+
+func (S *S) F() int {
+	return 1
+}
+func main() {
+	m := S(map[int64]int64{})
+	fmt.Println(m.F())
+}

@@ -230,14 +230,12 @@ func findFuncDeclByFuncType(files []*ast.File, f *types.Func) (funcDecl *ast.Fun
 					recv := sig.Recv()
 					switch expr := t.(type) {
 					case *ast.StarExpr:
-						if ident, ok := expr.X.(*ast.Ident); ok {
-							if ptr, ok := recv.Type().(*types.Pointer); ok {
-								named := ptr.Elem().(*types.Named)
-								name := named.Obj().Name()
-								if ident.Name == name {
-									return funcDecl
-								}
-							}
+						if expr.X.(*ast.Ident).Name == getRecvTypeName(recv) {
+							return funcDecl
+						}
+					case *ast.Ident:
+						if expr.Name == getRecvTypeName(recv) {
+							return funcDecl
 						}
 					}
 				}
@@ -245,6 +243,35 @@ func findFuncDeclByFuncType(files []*ast.File, f *types.Func) (funcDecl *ast.Fun
 		}
 	}
 	return nil
+}
+
+func getRecvTypeName(recv *types.Var) string {
+	switch recvType := recv.Type().(type) {
+	case *types.Pointer:
+		recvNewType := unwrapPointer(recvType)
+		switch t := recvNewType.(type) {
+		case *types.Named:
+			return t.Obj().Name()
+		default:
+			panic("unknown type in getRecvTypeName: " + t.String())
+		}
+	case *types.Named:
+		return recvType.Obj().Name()
+	default:
+		panic("unknown recv type in getRecvTypeName: " + recvType.String())
+	}
+}
+
+func unwrapPointer(ptr *types.Pointer) (retType types.Type) {
+	for {
+		if p, ok := ptr.Elem().(*types.Pointer); ok {
+			ptr = p
+		} else {
+			retType = ptr.Elem()
+			break
+		}
+	}
+	return
 }
 
 func RemoveCommentsFromFuncDecls(funcDecls []*ast.FuncDecl) {
