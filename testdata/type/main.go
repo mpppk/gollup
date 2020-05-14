@@ -7,6 +7,6 @@ import (
 )
 
 func main() {
-	m := lib.S(map[int64]int64{})
-	fmt.Println(m.F())
+	m := lib.S(map[int64]lib.Int{})
+	fmt.Println(m.F(), m[0].Get())
 }

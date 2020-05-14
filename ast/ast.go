@@ -164,6 +164,12 @@ func renameExternalPackageFunction(funcDecl *ast.FuncDecl, object types.Object, 
 				cursor.Replace(newCompositeLit)
 			}
 		}
+		if selectorExpr, ok := cursor.Node().(*ast.SelectorExpr); ok {
+			if newIdent := removePackageFromSelectorExpr(selectorExpr, pkg); newIdent != nil {
+				cursor.Replace(newIdent)
+			}
+		}
+
 		return true
 	}, nil)
 
@@ -281,7 +287,7 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 		if _, ok := xobj.(*types.Var); ok {
 			return callExpr
 		}
-	case *ast.CallExpr: // method chainしている場合
+	case *ast.CallExpr, *ast.IndexExpr: // method chainしている場合
 		return callExpr
 	}
 
@@ -308,25 +314,31 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 
 // package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
 func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, pkg *packages.Package) *ast.CompositeLit {
-	if _, ok := compositeLit.Type.(*ast.Ident); ok {
-		return compositeLit
-		//return &ast.CompositeLit{
-		//	Type: ast.NewIdent(ident.Name),
-		//}
+	switch comType := compositeLit.Type.(type) {
+	case *ast.SelectorExpr:
+		return &ast.CompositeLit{
+			Type: removePackageFromSelectorExpr(comType, pkg),
+		}
 	}
+	return compositeLit
+}
 
-	selExpr, ok := compositeLit.Type.(*ast.SelectorExpr)
-	if !ok {
-		return nil
-	}
-	x, ok := selExpr.X.(*ast.Ident)
+// package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
+func removePackageFromSelectorExpr(selector *ast.SelectorExpr, pkg *packages.Package) *ast.Ident {
+	x, ok := selector.X.(*ast.Ident)
 	if !ok {
 		return nil
 	}
 	obj := pkg.TypesInfo.ObjectOf(x)
-
-	// 置き換え
-	return &ast.CompositeLit{
-		Type: ast.NewIdent(renameFunc(obj.Pkg(), selExpr.Sel.Name)),
+	if !util.HasPkg(obj) {
+		return nil
 	}
+	pkgName, ok := obj.(*types.PkgName)
+	if !ok {
+		return nil
+	}
+	if util.IsStandardPackage(pkgName.Imported().Path()) {
+		return nil
+	}
+	return ast.NewIdent(renameFunc(obj.Pkg(), selector.Sel.Name))
 }
