@@ -94,6 +94,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "params_and_results", "want", "want.go.test"),
 		},
 		{
+			name: "abc007C",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "abc007C"),
 				filepath.Join(testDir, "abc007C", "lib"),
@@ -101,6 +102,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "abc007C", "want", "want.go.test"),
 		},
 		{
+			name: "atc001A",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "atc001A"),
 				filepath.Join(testDir, "atc001A", "lib"),
@@ -108,6 +110,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "atc001A", "want", "want.go.test"),
 		},
 		{
+			name: "atc001B",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "atc001B"),
 				filepath.Join(testDir, "atc001B", "lib"),
@@ -115,6 +118,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "atc001B", "want", "want.go.test"),
 		},
 		{
+			name: "ellipse",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "ellipse"),
 				filepath.Join(testDir, "ellipse", "lib"),
@@ -122,6 +126,7 @@ func TestRoot(t *testing.T) {
 			wantFilePath: filepath.Join(testDir, "ellipse", "want", "want.go.test"),
 		},
 		{
+			name: "type",
 			command: fmt.Sprintf("%s %s",
 				filepath.Join(testDir, "type"),
 				filepath.Join(testDir, "type", "lib"),
@@ -162,30 +167,34 @@ func TestRoot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		buf := new(bytes.Buffer)
-		rootCmd, err := cmd.NewRootCmd(afero.NewMemMapFs())
-		if err != nil {
-			t.Errorf("failed to create rootCmd: %s", err)
-		}
-		rootCmd.SetOut(buf)
-		rootCmd.SetErr(buf)
-		cmdArgs := strings.Split(c.command, " ")
-		rootCmd.SetArgs(cmdArgs)
-		if err := rootCmd.Execute(); err != nil {
-			t.Errorf("failed to execute rootCmd: %s", err)
-		}
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			buf := new(bytes.Buffer)
+			rootCmd, err := cmd.NewRootCmd(afero.NewMemMapFs())
+			if err != nil {
+				t.Errorf("failed to create rootCmd: %s", err)
+			}
+			rootCmd.SetOut(buf)
+			rootCmd.SetErr(buf)
+			cmdArgs := strings.Split(c.command, " ")
+			rootCmd.SetArgs(cmdArgs)
+			if err := rootCmd.Execute(); err != nil {
+				t.Errorf("failed to execute rootCmd: %s", err)
+			}
 
-		get := buf.String()
-		get = removeCarriageReturn(get)
-		contents, err := ioutil.ReadFile(c.wantFilePath)
-		if err != nil {
-			t.Fail()
-		}
-		want := string(contents)
-		want = removeCarriageReturn(want)
-		if want != get {
-			t.Errorf(":%s unexpected response: want:\n%s\nget:\n%s", c.name, want, get)
-		}
+			get := buf.String()
+			get = removeCarriageReturn(get)
+			contents, err := ioutil.ReadFile(c.wantFilePath)
+			if err != nil {
+				t.Fail()
+			}
+			want := string(contents)
+			want = removeCarriageReturn(want)
+			if want != get {
+				t.Errorf(":%s unexpected response: want:\n%s\nget:\n%s", c.name, want, get)
+			}
+		})
 	}
 }
 
