@@ -275,11 +275,14 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 	}
 
 	// 構造体のメソッドを呼び出している場合は書き換えない
-	if xident, ok := selExpr.X.(*ast.Ident); ok {
-		xobj := pkg.TypesInfo.ObjectOf(xident)
+	switch x := selExpr.X.(type) {
+	case *ast.Ident:
+		xobj := pkg.TypesInfo.ObjectOf(x)
 		if _, ok := xobj.(*types.Var); ok {
 			return callExpr
 		}
+	case *ast.CallExpr: // method chainしている場合
+		return callExpr
 	}
 
 	// 置き換え

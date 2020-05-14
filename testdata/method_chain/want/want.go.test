@@ -1,0 +1,17 @@
+package main
+
+import (
+	"fmt"
+)
+
+type Int int
+
+func (i Int) Get() int {
+	return 1
+}
+func lib_F() Int {
+	return 1
+}
+func main() {
+	fmt.Println(lib_F().Get())
+}
