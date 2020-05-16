@@ -159,11 +159,12 @@ func renameExternalPackageFunction(funcDecl *ast.FuncDecl, object types.Object, 
 				cursor.Replace(newCallExpr)
 			}
 		}
-		if compositeLit, ok := cursor.Node().(*ast.CompositeLit); ok {
-			if newCompositeLit := removePackageFromCompositeLit(compositeLit, pkg); newCompositeLit != nil {
-				cursor.Replace(newCompositeLit)
+		if selectorExpr, ok := cursor.Node().(*ast.SelectorExpr); ok {
+			if newIdent := removePackageFromSelectorExpr(selectorExpr, pkg); newIdent != nil {
+				cursor.Replace(newIdent)
 			}
 		}
+
 		return true
 	}, nil)
 
@@ -269,19 +270,24 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 	if !ok {
 		return nil
 	}
-	obj := pkg.TypesInfo.ObjectOf(selExpr.Sel)
-	if !util.HasPkg(obj) || util.IsStandardPackage(obj.Pkg().Path()) {
+
+	xident, ok := selExpr.X.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	obj := pkg.TypesInfo.ObjectOf(xident)
+	if !util.HasPkg(obj) {
 		return callExpr
 	}
 
-	// 構造体のメソッドを呼び出している場合は書き換えない
-	switch x := selExpr.X.(type) {
-	case *ast.Ident:
-		xobj := pkg.TypesInfo.ObjectOf(x)
-		if _, ok := xobj.(*types.Var); ok {
-			return callExpr
-		}
-	case *ast.CallExpr: // method chainしている場合
+	if !util.HasPkg(obj) {
+		return callExpr
+	}
+	pkgName, ok := obj.(*types.PkgName)
+	if !ok {
+		return callExpr
+	}
+	if util.IsStandardPackage(pkgName.Imported().Path()) {
 		return callExpr
 	}
 
@@ -289,7 +295,7 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 	newCallExpr := astcopy.CallExpr(callExpr)
 
 	// type castの場合は書き換えない FIXME: いつかは書き換えることになる
-	if _, ok := obj.(*types.Func); !ok {
+	if _, ok := pkg.TypesInfo.ObjectOf(selExpr.Sel).(*types.Func); !ok {
 		newCallExpr.Fun = &ast.BasicLit{
 			Kind:  token.STRING,
 			Value: selExpr.Sel.Name,
@@ -300,33 +306,28 @@ func removePackageFromCallExpr(callExpr *ast.CallExpr, pkg *packages.Package) *a
 
 	newCallExpr.Fun = &ast.BasicLit{
 		Kind:  token.STRING,
-		Value: renameFunc(obj.Pkg(), selExpr.Sel.Name),
+		Value: renameFunc(pkgName.Imported(), selExpr.Sel.Name),
 	}
 	newCallExpr.Args = callExpr.Args
 	return newCallExpr
 }
 
 // package名の部分を削除したCompositeLitを返します(非破壊). 存在しない名前の関数である場合や想定しない構造の場合はnilを返します.
-func removePackageFromCompositeLit(compositeLit *ast.CompositeLit, pkg *packages.Package) *ast.CompositeLit {
-	if _, ok := compositeLit.Type.(*ast.Ident); ok {
-		return compositeLit
-		//return &ast.CompositeLit{
-		//	Type: ast.NewIdent(ident.Name),
-		//}
-	}
-
-	selExpr, ok := compositeLit.Type.(*ast.SelectorExpr)
-	if !ok {
-		return nil
-	}
-	x, ok := selExpr.X.(*ast.Ident)
+func removePackageFromSelectorExpr(selector *ast.SelectorExpr, pkg *packages.Package) *ast.Ident {
+	x, ok := selector.X.(*ast.Ident)
 	if !ok {
 		return nil
 	}
 	obj := pkg.TypesInfo.ObjectOf(x)
-
-	// 置き換え
-	return &ast.CompositeLit{
-		Type: ast.NewIdent(renameFunc(obj.Pkg(), selExpr.Sel.Name)),
+	if !util.HasPkg(obj) {
+		return nil
 	}
+	pkgName, ok := obj.(*types.PkgName)
+	if !ok {
+		return nil
+	}
+	if util.IsStandardPackage(pkgName.Imported().Path()) {
+		return nil
+	}
+	return ast.NewIdent(renameFunc(obj.Pkg(), selector.Sel.Name))
 }

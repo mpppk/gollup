@@ -4,12 +4,16 @@ import (
 	"fmt"
 )
 
-type S map[int64]int64
+type Int int64
+type S map[int64]Int
 
 func (S *S) F() int {
 	return 1
 }
+func (i Int) Get() int {
+	return 1
+}
 func main() {
-	m := S(map[int64]int64{})
-	fmt.Println(m.F())
+	m := S(map[int64]Int{})
+	fmt.Println(m.F(), m[0].Get())
 }
