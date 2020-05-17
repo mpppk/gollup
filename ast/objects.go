@@ -1,6 +1,9 @@
 package ast
 
-import "go/types"
+import (
+	"fmt"
+	"go/types"
+)
 
 func findObject(objects []types.Object, object types.Object) (types.Object, bool) {
 	for _, o := range objects {
@@ -12,14 +15,24 @@ func findObject(objects []types.Object, object types.Object) (types.Object, bool
 }
 
 func isSameObject(obj1, obj2 types.Object) bool {
-	return obj1.Pkg().Path() == obj2.Pkg().Path() &&
-		obj1.Name() == obj2.Name()
+	return getObjectUniqueStr(obj1) == getObjectUniqueStr(obj2)
+}
+
+func getObjectUniqueStr(obj types.Object) string {
+	recv := ""
+	switch t := obj.Type().(type) {
+	case *types.Signature:
+		if t.Recv() != nil {
+			recv = t.Recv().Name()
+		}
+	}
+	return fmt.Sprintf("%s:%s:%s", obj.Pkg(), recv, obj.Name())
 }
 
 func distinctObjects(objects []types.Object) (newObjects []types.Object) {
 	m := map[string]types.Object{}
 	for _, object := range objects {
-		m[object.Pkg().Path()+object.Name()] = object
+		m[getObjectUniqueStr(object)] = object
 	}
 	for _, object := range m {
 		newObjects = append(newObjects, object)
