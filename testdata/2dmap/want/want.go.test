@@ -1,0 +1,23 @@
+package main
+
+type Map map[int]string
+type Map2 map[int]string
+
+func lib_NewMap() Map {
+	return Map{}
+}
+func lib_NewMap2() Map2 {
+	return Map2{}
+}
+func (m Map2) Get() string {
+	return "a"
+}
+func (m Map) Get() string {
+	return "a"
+}
+func main() {
+	m := lib_NewMap()
+	m2 := lib_NewMap2()
+	m.Get()
+	m2.Get()
+}

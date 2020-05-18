@@ -66,17 +66,17 @@ func ExtractObjectsFromFuncDeclRecursive(pkgs map[string]*packages.Package, f *t
 	newObjects := extractNonStandardObjectFromFuncDecl(pkg.TypesInfo, funcDecl)
 	objects = append(objects, newObjects...)
 	objects = append(objects, f)
-	for _, f := range calledFuncs {
-		if !util.HasPkg(f) || util.IsStandardPackage(f.Pkg().Path()) {
+	for _, f2 := range calledFuncs {
+		if !util.HasPkg(f2) || util.IsStandardPackage(f2.Pkg().Path()) {
 			continue
 		}
 
 		// 既に発見済みの関数の場合はスキップ
-		if _, ok := findObject(objects, f); ok {
+		if _, ok := findObject(objects, f2); ok {
 			continue
 		}
 
-		objs, err := ExtractObjectsFromFuncDeclRecursive(pkgs, f, objects)
+		objs, err := ExtractObjectsFromFuncDeclRecursive(pkgs, f2, objects)
 		if err != nil {
 			return nil, err
 		}

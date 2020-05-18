@@ -5,15 +5,21 @@ import (
 )
 
 type Int int64
+type M map[int64]S
 type S map[int64]Int
 
-func (S *S) F() int {
+func (S S) Get() int {
 	return 1
 }
 func (i Int) Get() int {
 	return 1
 }
+func (m M) Get() int {
+	return 1
+}
 func main() {
 	m := S(map[int64]Int{})
-	fmt.Println(m.F(), m[0].Get())
+	m2 := M{}
+	fmt.Println(m[0].Get(), m2.Get(), m2[0].Get())
+	fmt.Println(m2.Get())
 }

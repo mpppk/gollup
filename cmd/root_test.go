@@ -135,6 +135,13 @@ func TestRoot(t *testing.T) {
 			),
 			wantFilePath: filepath.Join(testDir, "method_chain", "want", "want.go.test"),
 		},
+		{
+			command: fmt.Sprintf("%s %s",
+				filepath.Join(testDir, "2dmap"),
+				filepath.Join(testDir, "2dmap", "lib"),
+			),
+			wantFilePath: filepath.Join(testDir, "2dmap", "want", "want.go.test"),
+		},
 		// duplicated name const is not supported yet
 		//{
 		//	command: fmt.Sprintf("%s %s",
