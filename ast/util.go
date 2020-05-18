@@ -197,6 +197,10 @@ func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {
 			for _, name := range field.Names {
 				recv += name.Name
 			}
+			expr := unwrapStarExpr(field.Type)
+			if ident, ok := expr.(*ast.Ident); ok {
+				recv += ident.Name
+			}
 		}
 		return
 	}
@@ -259,6 +263,22 @@ func getRecvTypeName(recv *types.Var) string {
 		return recvType.Obj().Name()
 	default:
 		panic("unknown recv type in getRecvTypeName: " + recvType.String())
+	}
+}
+
+func unwrapStarExpr(expr ast.Expr) ast.Expr {
+	cnt := 0
+	for {
+		switch newExpr := expr.(type) {
+		case *ast.StarExpr:
+			expr = newExpr.X
+			cnt++
+			if cnt > 100 {
+				panic(expr)
+			}
+		default:
+			return newExpr
+		}
 	}
 }
 

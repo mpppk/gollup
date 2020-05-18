@@ -23,7 +23,7 @@ func getObjectUniqueStr(obj types.Object) string {
 	switch t := obj.Type().(type) {
 	case *types.Signature:
 		if t.Recv() != nil {
-			recv = t.Recv().Name()
+			recv = t.Recv().Type().String()
 		}
 	}
 	return fmt.Sprintf("%s:%s:%s", obj.Pkg(), recv, obj.Name())
