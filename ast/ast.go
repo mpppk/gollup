@@ -112,9 +112,7 @@ func extractNonStandardObjectFromFuncDecl(info *types.Info, targetFuncDecl *ast.
 		}
 		switch obj.(type) {
 		case *types.Const, *types.Var, *types.TypeName:
-			if obj.Pkg().Name() == "main" || obj.Exported() {
-				objects = append(objects, obj)
-			}
+			objects = append(objects, obj)
 		}
 		return true
 	})
