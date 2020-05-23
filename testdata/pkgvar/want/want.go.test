@@ -1,0 +1,10 @@
+package main
+
+var v = 1
+
+func lib_F() int {
+	return v
+}
+func main() {
+	lib_F()
+}
