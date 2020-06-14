@@ -16,7 +16,7 @@ import (
 	"github.com/mpppk/gollup/util"
 )
 
-func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, error) {
+func NewPackagesFromPackageNames(packageNames []string) (*Packages, *token.FileSet, error) {
 	fset := token.NewFileSet()
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
@@ -27,7 +27,7 @@ func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, e
 		return nil, nil, err
 	}
 	if packages.PrintErrors(pkgs) > 0 {
-		return nil, nil, errors.New("error occurred in NewProgramFromPackages")
+		return nil, nil, errors.New("error occurred in NewPackagesFromPackageNames")
 	}
 	return NewPackages(pkgs), fset, nil
 }
@@ -142,7 +142,7 @@ func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
 	return nil
 }
 
-func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
+func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Program) {
 	for i, funcDecl := range sdecls.Funcs {
 		object := sdecls.FuncObjects[i]
 		pkg := pkgs.getPkg(object.Pkg().Path())

@@ -55,7 +55,7 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 				pkgDirs = []string{"."}
 			}
 
-			pkgs, _, err := ast2.NewProgramFromPackages(pkgDirs)
+			pkgs, _, err := ast2.NewPackagesFromPackageNames(pkgDirs)
 			if err != nil {
 				return err
 			}
@@ -69,26 +69,14 @@ func NewRootCmd(fs afero.Fs) (*cobra.Command, error) {
 			if !ok {
 				panic("target is not func: " + conf.TargetPackage + "." + conf.TargetMethod)
 			}
+
 			objects, err := ast2.ExtractObjectsFromFuncDeclRecursive(pkgs.Packages, targetPkg, []types.Object{})
 			if err != nil {
 				return err
 			}
 
-			sdecls := ast2.NewDecls(pkgs, objects)
-			ast2.RenameExternalPackageFunctions(pkgs, sdecls)
-			ast2.RemoveCommentsFromFuncDecls(sdecls.Funcs)
-			renamedFuncDecls := ast2.CopyFuncDeclsAsDecl(sdecls.Funcs)
-			renamedFuncDecls = ast2.SortFuncDeclsFromDecls(renamedFuncDecls)
-
-			ast2.SortGenDecls(sdecls.Consts)
-			ast2.SortGenDecls(sdecls.Vars)
-			ast2.SortGenDecls(sdecls.Types)
-
-			file := ast2.NewMergedFileFromPackageInfo(pkg.Syntax)
-			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Consts)...)
-			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Vars)...)
-			file.Decls = append(file.Decls, ast2.GenDeclToDecl(sdecls.Types)...)
-			file.Decls = append(file.Decls, renamedFuncDecls...)
+			program := ast2.NewProgram(pkgs, objects)
+			file := program.Bundle(pkg.Syntax)
 
 			buf := new(bytes.Buffer)
 			if err := format.Node(buf, token.NewFileSet(), file); err != nil {
