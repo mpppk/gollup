@@ -32,7 +32,7 @@ func NewPackagesFromPackageNames(packageNames []string) (*Packages, *token.FileS
 	return NewPackages(pkgs), fset, nil
 }
 
-func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
+func newMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 	importDecl := mergeImportDecls(files)
 
 	var imports []*ast.ImportSpec
@@ -142,7 +142,7 @@ func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
 	return nil
 }
 
-func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Program) {
+func renameExternalPackageFunctions(pkgs *Packages, sdecls *Program) {
 	for i, funcDecl := range sdecls.Funcs {
 		object := sdecls.FuncObjects[i]
 		pkg := pkgs.getPkg(object.Pkg().Path())

@@ -72,8 +72,8 @@ func NewProgram(pkgs *Packages, objects []types.Object) *Program {
 
 func (p *Program) Bundle(files []*ast.File) *ast.File {
 	// rename functions
-	RenameExternalPackageFunctions(p.Packages, p)
-	RemoveCommentsFromFuncDecls(p.Funcs)
+	renameExternalPackageFunctions(p.Packages, p)
+	removeCommentsFromFuncDecls(p.Funcs)
 	renamedFuncDecls := CopyFuncDeclsAsDecl(p.Funcs)
 	renamedFuncDecls = SortFuncDeclsFromDecls(renamedFuncDecls)
 
@@ -81,7 +81,7 @@ func (p *Program) Bundle(files []*ast.File) *ast.File {
 	SortGenDecls(p.Vars)
 	SortGenDecls(p.Types)
 
-	file := NewMergedFileFromPackageInfo(files)
+	file := newMergedFileFromPackageInfo(files)
 	file.Decls = append(file.Decls, GenDeclToDecl(p.Consts)...)
 	file.Decls = append(file.Decls, GenDeclToDecl(p.Vars)...)
 	file.Decls = append(file.Decls, GenDeclToDecl(p.Types)...)

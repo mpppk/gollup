@@ -222,7 +222,7 @@ func unwrapPointer(ptr *types.Pointer) (retType types.Type) {
 	return
 }
 
-func RemoveCommentsFromFuncDecls(funcDecls []*ast.FuncDecl) {
+func removeCommentsFromFuncDecls(funcDecls []*ast.FuncDecl) {
 	for _, decl := range funcDecls {
 		decl.Doc = nil
 	}
