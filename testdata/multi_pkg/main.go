@@ -13,9 +13,5 @@ func main() {
 }
 
 func F1() int {
-	return f()
-}
-
-func f() int {
 	return ANSWER
 }
