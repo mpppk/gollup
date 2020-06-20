@@ -5,14 +5,14 @@ import (
 )
 
 const (
-	A      = 0
-	ANSWER = 42
-	B      = 1
+	C     = 1
+	lib_A = 0
+	lib_B = 1
 )
 
 func lib_F1() float64 {
-	return ANSWER + A + B
+	return lib_A + lib_B
 }
 func main() {
-	fmt.Println(lib_F1())
+	fmt.Println(lib_F1(), C)
 }

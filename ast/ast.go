@@ -16,7 +16,7 @@ import (
 	"github.com/mpppk/gollup/util"
 )
 
-func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, error) {
+func NewPackagesFromPackageNames(packageNames []string) (*Packages, *token.FileSet, error) {
 	fset := token.NewFileSet()
 	config := &packages.Config{
 		Mode: packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.LoadAllSyntax,
@@ -27,12 +27,12 @@ func NewProgramFromPackages(packageNames []string) (*Packages, *token.FileSet, e
 		return nil, nil, err
 	}
 	if packages.PrintErrors(pkgs) > 0 {
-		return nil, nil, errors.New("error occurred in NewProgramFromPackages")
+		return nil, nil, errors.New("error occurred in NewPackagesFromPackageNames")
 	}
 	return NewPackages(pkgs), fset, nil
 }
 
-func NewMergedFileFromPackageInfo(files []*ast.File) *ast.File {
+func newMergedFileFromPackageInfo(files []*ast.File) *ast.File {
 	importDecl := mergeImportDecls(files)
 
 	var imports []*ast.ImportSpec
@@ -142,12 +142,19 @@ func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
 	return nil
 }
 
-func RenameExternalPackageFunctions(pkgs *Packages, sdecls *Decls) {
-	for i, funcDecl := range sdecls.Funcs {
-		object := sdecls.FuncObjects[i]
-		pkg := pkgs.getPkg(object.Pkg().Path())
-		renameExternalPackageFunction(funcDecl, object, pkg)
-	}
+func renameExternalPackageConst(funcDecl *ast.FuncDecl, pkg *packages.Package) {
+	astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
+		ident, ok := cursor.Node().(*ast.Ident)
+		if !ok {
+			return true
+		}
+		switch t := pkg.TypesInfo.ObjectOf(ident).(type) {
+		case *types.Const:
+			ident.Name = renameFunc(pkg.Types, t.Name())
+		}
+
+		return true
+	}, nil)
 }
 
 func renameExternalPackageFunction(funcDecl *ast.FuncDecl, object types.Object, pkg *packages.Package) {

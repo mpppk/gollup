@@ -18,7 +18,6 @@ Please try gollup on the past contest, check the behavior, and consider whether 
 When using it on a contest, I recommend that you also prepare other bundling methods such as [bundle](https://godoc.org/golang.org/x/tools/cmd/bundle) or manual.
 
 Also, currently gollup does not support the following situations:
-* [const with duplicate name between packages](https://github.com/mpppk/gollup/blob/07e7d57a766dd48efaf771ad115d4bfa3506a5e5/cmd/root_test.go#L152)
 * [struct with duplicate name between packages](https://github.com/mpppk/gollup/blob/07e7d57a766dd48efaf771ad115d4bfa3506a5e5/cmd/root_test.go#L160)
 * [nested/embedded struct](https://github.com/mpppk/gollup/blob/07e7d57a766dd48efaf771ad115d4bfa3506a5e5/cmd/root_test.go#L168)
 
@@ -110,10 +109,6 @@ func main() {
 }
 
 func F1() int {
-	return f()
-}
-
-func f() int {
 	return ANSWER
 }
 ```
@@ -123,13 +118,10 @@ func f() int {
 package lib
 
 import "math"
+const ANSWER = -42
 
 func F1() float64 {
-	return f2()
-}
-
-func f2() float64 {
-	return math.Sqrt(42)
+	return math.Abs(ANSWER)
 }
 ```
 
@@ -142,25 +134,22 @@ $ gollup ./lib . > output.go
 package main
 
 import (
-        "fmt"
-        "math"
+	"fmt"
+	"math"
 )
 
-const ANSWER = 42
+const (
+	ANSWER     = 42
+	lib_ANSWER = -42
+)
 
 func F1() int {
-        return f()
-}
-func f() int {
-        return ANSWER
+	return ANSWER
 }
 func lib_F1() float64 {
-        return lib_f2()
-}
-func lib_f2() float64 {
-        return math.Sqrt(42)
+	return math.Abs(lib_ANSWER)
 }
 func main() {
-        fmt.Println(F1(), lib_F1())
+	fmt.Println(F1(), lib_F1())
 }
 ```

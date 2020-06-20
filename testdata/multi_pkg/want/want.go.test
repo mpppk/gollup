@@ -5,19 +5,16 @@ import (
 	"math"
 )
 
-const ANSWER = 42
+const (
+	ANSWER     = 42
+	lib_ANSWER = -42
+)
 
 func F1() int {
-	return f()
-}
-func f() int {
 	return ANSWER
 }
 func lib_F1() float64 {
-	return lib_f2()
-}
-func lib_f2() float64 {
-	return math.Sqrt(42)
+	return math.Abs(lib_ANSWER)
 }
 func main() {
 	fmt.Println(F1(), lib_F1())

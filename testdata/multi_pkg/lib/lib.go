@@ -2,10 +2,8 @@ package lib
 
 import "math"
 
-func F1() float64 {
-	return f2()
-}
+const ANSWER = -42
 
-func f2() float64 {
-	return math.Sqrt(42)
+func F1() float64 {
+	return math.Abs(ANSWER)
 }
