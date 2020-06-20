@@ -13,7 +13,7 @@ type Program struct {
 	ImportObjects []types.Object
 	Imports       []*ast.GenDecl
 	ConstObjects  []types.Object
-	Consts        []*ast.GenDecl
+	Const         *ast.GenDecl
 	TypeObjects   []types.Object
 	Types         []*ast.GenDecl
 	VarObjects    []types.Object
@@ -64,25 +64,31 @@ func NewProgram(pkgs *Packages, objects []types.Object) *Program {
 		}
 	}
 	if len(constDecl.Specs) > 0 {
-		sortSpecs(constDecl.Specs)
-		sdecls.Consts = append(sdecls.Consts, constDecl)
+		sdecls.Const = constDecl
 	}
 	return sdecls
 }
 
 func (p *Program) Bundle(files []*ast.File) *ast.File {
 	// rename functions
-	renameExternalPackageFunctions(p.Packages, p)
+	p.renameExternalPackageFunctions()
 	removeCommentsFromFuncDecls(p.Funcs)
 	renamedFuncDecls := CopyFuncDeclsAsDecl(p.Funcs)
 	renamedFuncDecls = SortFuncDeclsFromDecls(renamedFuncDecls)
 
-	SortGenDecls(p.Consts)
+	p.addPackagePrefixToConst()
+
+	// rename consts
+	if p.Const != nil {
+		sortSpecs(p.Const.Specs)
+	}
 	SortGenDecls(p.Vars)
 	SortGenDecls(p.Types)
 
 	file := newMergedFileFromPackageInfo(files)
-	file.Decls = append(file.Decls, GenDeclToDecl(p.Consts)...)
+	if p.Const != nil {
+		file.Decls = append(file.Decls, p.Const)
+	}
 	file.Decls = append(file.Decls, GenDeclToDecl(p.Vars)...)
 	file.Decls = append(file.Decls, GenDeclToDecl(p.Types)...)
 	file.Decls = append(file.Decls, renamedFuncDecls...)
@@ -96,4 +102,25 @@ func (p *Program) findDeclFromObject(object types.Object) (ast.Decl, bool) {
 		}
 	}
 	return nil, false
+}
+
+func (p *Program) renameExternalPackageFunctions() {
+	for i, funcDecl := range p.Funcs {
+		object := p.FuncObjects[i]
+		pkg := p.Packages.getPkg(object.Pkg().Path())
+		renameExternalPackageFunction(funcDecl, object, pkg)
+		renameExternalPackageConst(funcDecl, pkg)
+	}
+}
+
+func (p *Program) addPackagePrefixToConst() {
+	if p.Const == nil {
+		return
+	}
+	for i, spec := range p.Const.Specs {
+		pkgName := p.ConstObjects[i].Pkg().Name()
+		if pkgName != "main" { // FIXME
+			addPrefixToSpec(spec, pkgName+"_")
+		}
+	}
 }

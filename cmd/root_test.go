@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sergi/go-diff/diffmatchpatch"
+
 	"github.com/mpppk/gollup/cmd"
 
 	"github.com/spf13/afero"
@@ -149,14 +151,6 @@ func TestRoot(t *testing.T) {
 			),
 			wantFilePath: filepath.Join(testDir, "pkgvar", "want", "want.go.test"),
 		},
-		// duplicated name const is not supported yet
-		//{
-		//	command: fmt.Sprintf("%s %s",
-		//		filepath.Join(testDir, "dup_const"),
-		//		filepath.Join(testDir, "dup_const", "lib"),
-		//	),
-		//	wantFilePath: filepath.Join(testDir, "dup_const", "want", "want.go.test"),
-		//},
 		// duplicated name struct is not supported yet
 		//{
 		//	command: fmt.Sprintf("%s %s",
@@ -198,11 +192,30 @@ func TestRoot(t *testing.T) {
 		want := string(contents)
 		want = removeCarriageReturn(want)
 		if want != get {
-			t.Errorf(":%s unexpected response: want:\n%s\nget:\n%s", c.name, want, get)
+			diffs := lineDiff(want, get)
+			var errorTextBuilder strings.Builder
+			for _, diff := range diffs {
+				switch diff.Type {
+				case diffmatchpatch.DiffDelete:
+					errorTextBuilder.WriteString("- " + diff.Text)
+				case diffmatchpatch.DiffEqual:
+					errorTextBuilder.WriteString("  " + diff.Text)
+				case diffmatchpatch.DiffInsert:
+					errorTextBuilder.WriteString("+ " + diff.Text)
+				}
+			}
+			t.Errorf(":%s unexpected response: %s", c.name, errorTextBuilder.String())
 		}
 	}
 }
 
 func removeCarriageReturn(s string) string {
 	return strings.Replace(s, "\r", "", -1)
+}
+
+func lineDiff(src1, src2 string) []diffmatchpatch.Diff {
+	dmp := diffmatchpatch.New()
+	a, b, c := dmp.DiffLinesToChars(src1, src2)
+	diffs := dmp.DiffMain(a, b, false)
+	return dmp.DiffCharsToLines(diffs, c)
 }

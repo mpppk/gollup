@@ -81,11 +81,12 @@ func CopyFuncDeclsAsDecl(funcDecls []*ast.FuncDecl) (newFuncDecls []ast.Decl) {
 	return
 }
 
-func renameFunc(pkg *types.Package, funcName string) string {
-	if pkg == nil || pkg.Name() == "main" {
-		return funcName
+func renameFunc(pkg *types.Package, name string) string {
+	// universe const like true/false should not be renamed
+	if pkg == nil || pkg.Name() == "main" || types.Universe.Lookup(name) != nil {
+		return name
 	}
-	return pkg.Name() + "_" + funcName
+	return pkg.Name() + "_" + name
 }
 
 func SortGenDecls(genDecls []*ast.GenDecl) {
@@ -113,6 +114,20 @@ func specToString(spec ast.Spec) string {
 		return s.Name.Name
 	}
 	return ""
+}
+
+// specの名前に指定したprefixを追加します。破壊的メソッドです。
+func addPrefixToSpec(spec ast.Spec, prefix string) {
+	switch s := spec.(type) {
+	case *ast.ImportSpec:
+		s.Name.Name = prefix + s.Name.Name
+	case *ast.ValueSpec:
+		for i, name := range s.Names {
+			s.Names[i].Name = prefix + name.Name
+		}
+	case *ast.TypeSpec:
+		s.Name.Name = prefix + s.Name.Name
+	}
 }
 
 func SortFuncDeclsFromDecls(decls []ast.Decl) []ast.Decl {

@@ -142,12 +142,19 @@ func callExprToFunc(info *types.Info, callExpr *ast.CallExpr) *types.Func {
 	return nil
 }
 
-func renameExternalPackageFunctions(pkgs *Packages, sdecls *Program) {
-	for i, funcDecl := range sdecls.Funcs {
-		object := sdecls.FuncObjects[i]
-		pkg := pkgs.getPkg(object.Pkg().Path())
-		renameExternalPackageFunction(funcDecl, object, pkg)
-	}
+func renameExternalPackageConst(funcDecl *ast.FuncDecl, pkg *packages.Package) {
+	astutil.Apply(funcDecl, func(cursor *astutil.Cursor) bool {
+		ident, ok := cursor.Node().(*ast.Ident)
+		if !ok {
+			return true
+		}
+		switch t := pkg.TypesInfo.ObjectOf(ident).(type) {
+		case *types.Const:
+			ident.Name = renameFunc(pkg.Types, t.Name())
+		}
+
+		return true
+	}, nil)
 }
 
 func renameExternalPackageFunction(funcDecl *ast.FuncDecl, object types.Object, pkg *packages.Package) {
