@@ -14,5 +14,5 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
-	golang.org/x/tools v0.0.0-20200913032122-97363e29fc9b
+	golang.org/x/tools v0.0.0-20200914161755-17fc728d0d1e
 )
