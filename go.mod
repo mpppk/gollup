@@ -11,7 +11,7 @@ require (
 	github.com/rhysd/go-github-selfupdate v1.2.2
 	github.com/sergi/go-diff v1.1.0
 	github.com/spf13/afero v1.4.1
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.1.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
